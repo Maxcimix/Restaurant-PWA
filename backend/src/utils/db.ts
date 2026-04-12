@@ -15,9 +15,15 @@ pool.on('error', (err) => {
   console.error('[Database] Unexpected error:', err);
 });
 
-pool.on('connect', () => {
-  console.log('[Database] Connected to PostgreSQL');
-});
+// Verifica conexión al iniciar
+pool.connect()
+  .then((client) => {
+    console.log('✅ PostgreSQL conectado');
+    client.release();
+  })
+  .catch((err) => {
+    console.error('❌ Error conectando a PostgreSQL:', err.message);
+  });
 
 export const query = (text: string, params?: any[]) => {
   return pool.query(text, params);

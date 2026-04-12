@@ -2,6 +2,8 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import testRoutes from './routes/test';
+import authRoutes from './routes/auth';
+import devRoutes from './routes/dev';
 
 dotenv.config();
 
@@ -25,3 +27,9 @@ app.listen(PORT, () => {
   console.log(`[Server] Running on http://localhost:${PORT}`);
   console.log(`[Environment] ${process.env.NODE_ENV}`);
 });
+
+// Después de crear el app de Express:
+app.use('/api/auth', authRoutes);
+
+
+app.use('/api/dev', devRoutes);
