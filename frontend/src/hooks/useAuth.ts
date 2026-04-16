@@ -32,7 +32,7 @@ export function useAuth() {
     try {
       const data = await loginRequest({ email, password });
       saveToken(data.token);
-      setUser(data.user);
+      setUser({ ...data.user, token: data.token });
 
       // Redirige según modo + rol
       const modeKey = mode ?? 'autoservicio';
