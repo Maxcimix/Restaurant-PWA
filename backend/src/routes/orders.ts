@@ -1,11 +1,7 @@
 // ============================================================
-// backend/src/routes/orders.ts
+// backend/src/routes/orders.ts  —  Fase 4 (actualizado)
 //
-// CAMBIOS vs Fase 3 original:
-// - POST /api/orders y GET /api/orders/:id son públicos.
-//   El cliente autoservicio los usa sin login.
-// - table_id es null en autoservicio — el controller lo valida
-//   según el campo source del body.
+// NUEVO: POST /api/orders/:id/close (cierra pedido, genera recibo)
 // ============================================================
 
 import { Router } from 'express';
@@ -15,36 +11,37 @@ import {
   updateOrderStatus,
   getActiveOrders,
 } from '../controllers/orderController';
+import { closeOrder } from '../controllers/cajaController';
 import { authenticate } from '../middleware/auth';
-import { requireRole } from '../middleware/roleAuth';
+import { requireRole }  from '../middleware/roleAuth';
 
 const router = Router();
 
 // ── Rutas públicas (cliente sin login) ──────────────────────
+router.post('/',    createOrder);
+router.get('/:id',  getOrderById);
 
-// Crea una nueva orden. En autoservicio: table_id = null, source = 'autoservicio'.
-// En flujo mesero: table_id = UUID de la mesa, source = 'waiter'.
-router.post('/', createOrder);
-
-// Consulta el estado de una orden — el cliente rastrea su pedido
-router.get('/:id', getOrderById);
-
-// ── Rutas protegidas (solo personal autenticado) ─────────────
-
-// Dashboard de caja/cocina — lista todas las órdenes activas
+// ── Rutas protegidas ─────────────────────────────────────────
 router.get(
   '/',
   authenticate,
-  requireRole(['caja', 'cocina', 'mesero', 'admin']),
+  requireRole(['caja','cocina','mesero','admin']),
   getActiveOrders
 );
 
-// Actualizar estado de una orden (caja valida, cocina prepara, etc.)
 router.patch(
   '/:id/status',
   authenticate,
-  requireRole(['caja', 'cocina', 'admin']),
+  requireRole(['caja','cocina','admin']),
   updateOrderStatus
+);
+
+// NUEVO Fase 4: cerrar pedido y generar recibo
+router.post(
+  '/:id/close',
+  authenticate,
+  requireRole(['caja','admin']),
+  closeOrder
 );
 
 export default router;
