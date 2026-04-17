@@ -1,35 +1,84 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
+// ============================================================
+// frontend/src/App.tsx
+//
+// CAMBIOS vs Fase 3 original:
+// - ELIMINADA: ruta /autoservicio/mesa (TableValidator)
+//   Autoservicio accede directo al menú sin validar mesa.
+// - /autoservicio/menu ahora es el punto de entrada del flujo.
+// ============================================================
 
-function App() {
-  const [count, setCount] = useState(0)
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import Home           from './pages/Home';
+import RoleSelectPage from './pages/RoleSelectPage';
+import LoginPage      from './pages/LoginPage';
+import ProtectedRoute from './components/auth/ProtectedRoute';
 
+// ── Fase 3: Cliente Autoservicio ──────────────────────────────
+// SIN TableValidator — autoservicio no gestiona mesas
+import ClientMenu   from './pages/ClientMenu';
+import Checkout     from './pages/Checkout';
+import OrderTracker from './pages/OrderTracker';
+
+const Soon = ({ label }: { label: string }) => (
+  <div style={{
+    minHeight: '100svh', background: '#080810', color: '#f0ece6',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: '14px', fontFamily: 'sans-serif',
+  }}>
+    <span style={{ fontSize: 52 }}>🚧</span>
+    <h2 style={{ margin: 0, fontSize: 24, fontWeight: 800 }}>{label}</h2>
+    <p style={{ color: '#55556a', fontSize: 14 }}>Próxima fase</p>
+    <a href="/" style={{ color: '#f97316', fontSize: 13, textDecoration: 'none' }}>← Inicio</a>
+  </div>
+);
+
+const Unauthorized = () => (
+  <div style={{
+    minHeight: '100svh', background: '#080810', color: '#f0ece6',
+    display: 'flex', flexDirection: 'column', alignItems: 'center',
+    justifyContent: 'center', gap: '14px', fontFamily: 'sans-serif',
+  }}>
+    <span style={{ fontSize: 52 }}>🔒</span>
+    <h2 style={{ margin: 0 }}>Acceso denegado</h2>
+    <a href="/" style={{ color: '#f97316', fontSize: 13, textDecoration: 'none' }}>← Inicio</a>
+  </div>
+);
+
+export default function App() {
   return (
-    <>
-      <div>
-        <a href="https://vite.dev" target="_blank">
-          <img src={viteLogo} className="logo" alt="Vite logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <h1>Vite + React</h1>
-      <div className="card">
-        <button onClick={() => setCount((count) => count + 1)}>
-          count is {count}
-        </button>
-        <p>
-          Edit <code>src/App.tsx</code> and save to test HMR
-        </p>
-      </div>
-      <p className="read-the-docs">
-        Click on the Vite and React logos to learn more
-      </p>
-    </>
-  )
-}
+    <BrowserRouter>
+      <Routes>
+        {/* ── Fase 2: Acceso ── */}
+        <Route path="/"            element={<Home />} />
+        <Route path="/select-role" element={<RoleSelectPage />} />
+        <Route path="/login"       element={<LoginPage />} />
 
-export default App
+        {/* ── Fase 3: Autoservicio — sin validación de mesa ── */}
+        <Route path="/autoservicio/menu"        element={<ClientMenu />} />
+        <Route path="/autoservicio/checkout"    element={<Checkout />} />
+        <Route path="/autoservicio/tracker/:id" element={<OrderTracker />} />
+
+        {/* ── Fase 4+: Personal autenticado ── */}
+        <Route path="/autoservicio/caja"
+          element={<ProtectedRoute allowedRoles={['caja','admin']}><Soon label="Caja Autoservicio" /></ProtectedRoute>}
+        />
+        <Route path="/cocina/kds"
+          element={<ProtectedRoute allowedRoles={['cocina','admin']}><Soon label="Kitchen Display System" /></ProtectedRoute>}
+        />
+        <Route path="/mesero/dashboard"
+          element={<ProtectedRoute allowedRoles={['mesero','admin']}><Soon label="Dashboard Mesero" /></ProtectedRoute>}
+        />
+        <Route path="/mesero/menu-cliente" element={<Soon label="Menú Cliente (Mesero)" />} />
+        <Route path="/caja/dashboard"
+          element={<ProtectedRoute allowedRoles={['caja','admin']}><Soon label="Caja — Modo Mesero" /></ProtectedRoute>}
+        />
+        <Route path="/admin/dashboard"
+          element={<ProtectedRoute allowedRoles={['admin']}><Soon label="Dashboard Admin" /></ProtectedRoute>}
+        />
+
+        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="*"             element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
