@@ -239,15 +239,32 @@ export async function updateOrderStatus(req: Request, res: Response) {
 }
 
 // ── GET /api/orders/active ───────────────────────────────────
-export async function getActiveOrders(_req: Request, res: Response) {
+export async function getActiveOrders(req: Request, res: Response) {
   try {
     const result = await pool.query(`
-      SELECT o.id, o.order_number, o.table_id, o.total, o.status,
-             o.payment_method, o.created_at, o.source,
-             t.number AS table_number
+      SELECT
+        o.id, o.order_number, o.status, o.payment_method,
+        o.subtotal, o.tax, o.total, o.notes, o.source,
+        o.created_at, o.updated_at,
+        t.number AS table_number,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id',         oi.id,
+              'name',       mi.name,
+              'quantity',   oi.quantity,
+              'unit_price', oi.price,
+              'notes',      oi.special_instructions
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL),
+          '[]'
+        ) AS items
       FROM orders o
-      LEFT JOIN tables t ON o.table_id = t.id
-      WHERE o.status NOT IN ('completed','cancelled')
+      LEFT JOIN tables t       ON o.table_id = t.id
+      LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
+      WHERE o.status NOT IN ('completed', 'cancelled')
+      GROUP BY o.id, t.number
       ORDER BY o.created_at ASC
     `);
     return res.json(result.rows);

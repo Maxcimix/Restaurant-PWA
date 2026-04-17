@@ -5,25 +5,47 @@
 
 import { apiFetch } from './api';
 import type { Order } from '../types/order';
-import type { CloseOrderPayload, CloseOrderResponse } from '../types/caja';
+import type {
+  OrderWithMeta,
+  CloseOrderPayload,
+  CloseOrderResponse,
+} from '../types/caja';
 
-export const getActiveOrders = (): Promise<Order[]> =>
-  apiFetch<Order[]>('/orders/active');
+// Convierte Order → OrderWithMeta calculando los campos extra
+function toOrderWithMeta(order: Order): OrderWithMeta {
+  const elapsed = Math.floor(
+    (Date.now() - new Date(order.created_at).getTime()) / 60_000
+  );
+  return {
+    ...order,
+    elapsedMinutes: elapsed,
+    isUrgent:       elapsed > 20,
+  };
+}
 
-export const updateOrderStatus = (orderId: string, status: string): Promise<Order> =>
+// ✅ Retorna OrderWithMeta[] — compatible con cajaStore.setOrders
+export const getActiveOrders = (): Promise<OrderWithMeta[]> =>
+  apiFetch<Order[]>('/orders/active').then((orders) =>
+    orders.map(toOrderWithMeta)
+  );
+
+export const getOrderDetail = (orderId: string): Promise<OrderWithMeta> =>
+  apiFetch<Order>(`/orders/${orderId}`).then(toOrderWithMeta);
+
+export const updateOrderStatus = (
+  orderId: string,
+  status: string
+): Promise<Order> =>
   apiFetch<Order>(`/orders/${orderId}/status`, {
     method: 'PATCH',
     body:   JSON.stringify({ status }),
   });
 
 export const closeOrder = (
-  orderId: string,
+  orderId:  string,
   payload?: CloseOrderPayload
 ): Promise<CloseOrderResponse> =>
   apiFetch<CloseOrderResponse>(`/orders/${orderId}/close`, {
     method: 'POST',
     body:   JSON.stringify(payload ?? {}),
   });
-
-export const getOrderDetail = (orderId: string): Promise<Order> =>
-  apiFetch<Order>(`/orders/${orderId}`);

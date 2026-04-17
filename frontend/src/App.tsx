@@ -8,15 +8,16 @@
 // ============================================================
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import Home           from './pages/Home';
+import Home from './pages/Home';
 import RoleSelectPage from './pages/RoleSelectPage';
-import LoginPage      from './pages/LoginPage';
+import LoginPage from './pages/LoginPage';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import CajaAutoservicio from './pages/caja/CajaAutoservicio';
 
 // ── Fase 3: Cliente Autoservicio ──────────────────────────────
 // SIN TableValidator — autoservicio no gestiona mesas
-import ClientMenu   from './pages/ClientMenu';
-import Checkout     from './pages/Checkout';
+import ClientMenu from './pages/ClientMenu';
+import Checkout from './pages/Checkout';
 import OrderTracker from './pages/OrderTracker';
 
 const Soon = ({ label }: { label: string }) => (
@@ -49,35 +50,39 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* ── Fase 2: Acceso ── */}
-        <Route path="/"            element={<Home />} />
+        <Route path="/" element={<Home />} />
         <Route path="/select-role" element={<RoleSelectPage />} />
-        <Route path="/login"       element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
 
         {/* ── Fase 3: Autoservicio — sin validación de mesa ── */}
-        <Route path="/autoservicio/menu"        element={<ClientMenu />} />
-        <Route path="/autoservicio/checkout"    element={<Checkout />} />
+        <Route path="/autoservicio/menu" element={<ClientMenu />} />
+        <Route path="/autoservicio/checkout" element={<Checkout />} />
         <Route path="/autoservicio/tracker/:id" element={<OrderTracker />} />
 
         {/* ── Fase 4+: Personal autenticado ── */}
         <Route path="/autoservicio/caja"
-          element={<ProtectedRoute allowedRoles={['caja','admin']}><Soon label="Caja Autoservicio" /></ProtectedRoute>}
+          element={
+            <ProtectedRoute allowedRoles={['caja', 'admin']}>
+              <CajaAutoservicio />
+            </ProtectedRoute>
+          }
         />
         <Route path="/cocina/kds"
-          element={<ProtectedRoute allowedRoles={['cocina','admin']}><Soon label="Kitchen Display System" /></ProtectedRoute>}
+          element={<ProtectedRoute allowedRoles={['cocina', 'admin']}><Soon label="Kitchen Display System" /></ProtectedRoute>}
         />
         <Route path="/mesero/dashboard"
-          element={<ProtectedRoute allowedRoles={['mesero','admin']}><Soon label="Dashboard Mesero" /></ProtectedRoute>}
+          element={<ProtectedRoute allowedRoles={['mesero', 'admin']}><Soon label="Dashboard Mesero" /></ProtectedRoute>}
         />
         <Route path="/mesero/menu-cliente" element={<Soon label="Menú Cliente (Mesero)" />} />
         <Route path="/caja/dashboard"
-          element={<ProtectedRoute allowedRoles={['caja','admin']}><Soon label="Caja — Modo Mesero" /></ProtectedRoute>}
+          element={<ProtectedRoute allowedRoles={['caja', 'admin']}><Soon label="Caja — Modo Mesero" /></ProtectedRoute>}
         />
         <Route path="/admin/dashboard"
           element={<ProtectedRoute allowedRoles={['admin']}><Soon label="Dashboard Admin" /></ProtectedRoute>}
         />
 
         <Route path="/unauthorized" element={<Unauthorized />} />
-        <Route path="*"             element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   );

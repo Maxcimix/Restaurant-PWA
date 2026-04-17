@@ -8,54 +8,55 @@
 // ============================================================
 
 import { create } from 'zustand';
-import type { Order, OrderStatus } from '../types/order';
+//import type { Order, OrderStatus } from '../types/order';
 import type { OrderWithMeta } from '../types/caja';
 
 interface CajaState {
-  orders:        OrderWithMeta[];
-  loading:       boolean;
-  error:         string | null;
-  newOrderAlert: boolean;  // activa sonido/visual de nueva orden
+    orders: OrderWithMeta[];
+    loading: boolean;
+    error: string | null;
+    newOrderAlert: boolean;  // activa sonido/visual de nueva orden
 
-  setOrders:    (orders: Order[]) => void;
-  addOrder:     (order: Order)    => void;
-  updateStatus: (orderId: string, status: OrderStatus) => void;
-  removeOrder:  (orderId: string) => void;
-  setLoading:   (v: boolean)      => void;
-  setError:     (msg: string | null) => void;
-  clearAlert:   () => void;
+    setOrders: (orders: OrderWithMeta[]) => void;
+    addOrder: (order: OrderWithMeta) => void;
+    updateStatus: (id: string, status: string) => void;
+    removeOrder: (id: string) => void;
+    setLoading: (v: boolean) => void;
+    setError: (msg: string | null) => void;
+    clearAlert: () => void;
 }
 
-function withMeta(order: Order): OrderWithMeta {
-  const elapsedMs      = Date.now() - new Date(order.created_at).getTime();
-  const elapsedMinutes = Math.floor(elapsedMs / 60_000);
-  return { ...order, elapsedMinutes, isUrgent: elapsedMinutes > 20 };
+function withMeta(order: OrderWithMeta): OrderWithMeta {
+    const created = new Date(order.created_at).getTime();
+    const elapsed = Math.floor((Date.now() - created) / 60000);
+    return { ...order, elapsedMinutes: elapsed, isUrgent: elapsed > 20 };
 }
 
-export const useCajaStore = create<CajaState>()((set) => ({
-  orders:        [],
-  loading:       false,
-  error:         null,
-  newOrderAlert: false,
+export const useCajaStore = create<CajaState>((set) => ({
+    orders: [],
+    loading: false,
+    error: null,
+    newOrderAlert: false,
 
-  setOrders: (orders) =>
-    set({ orders: orders.map(withMeta), loading: false, error: null }),
+    setOrders: (orders) => set({ orders: orders.map(withMeta), loading: false }),
+    setLoading: (v) => set({ loading: v }),
+    setError: (msg) => set({ error: msg, loading: false }),
 
-  addOrder: (order) =>
-    set((s) => ({ orders: [withMeta(order), ...s.orders], newOrderAlert: true })),
-
-  updateStatus: (orderId, status) =>
-    set((s) => ({
-      orders: s.orders.map((o) =>
-        o.id === orderId ? withMeta({ ...o, status }) : o
-      ),
+    addOrder: (order) => set((s) => ({
+        orders: [...s.orders, withMeta(order)],
+        newOrderAlert: true,
     })),
 
-  // Quitar del dashboard al completarse o cancelarse
-  removeOrder: (orderId) =>
-    set((s) => ({ orders: s.orders.filter((o) => o.id !== orderId) })),
+    updateStatus: (id, status) => set((s) => ({
+        orders: s.orders.map((o) =>
+            o.id === id ? withMeta({ ...o, status: status as OrderWithMeta['status'] }) : o
+        ),
+    })),
 
-  setLoading: (loading) => set({ loading }),
-  setError:   (error)   => set({ error, loading: false }),
-  clearAlert: ()        => set({ newOrderAlert: false }),
+    // Quitar del dashboard al completarse o cancelarse
+    removeOrder: (id) => set((s) => ({
+        orders: s.orders.filter((o) => o.id !== id),
+    })),
+
+  clearAlert: () => set({ newOrderAlert: false }),
 }));
