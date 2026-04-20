@@ -5,9 +5,7 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json           # Si usas pnpm o yarn, descomenta el que corresponda
-# pnpm-lock.yaml
-# yarn.lock
+package-lock.json     
 
 # Caché de npm
 .npm/
@@ -108,21 +106,3 @@ tmp/
 *.bak
 *.swp
 *.log
-
-# ============================================
-# 🚫 DOCUMENTACIÓN GENERADA
-# ============================================
-docs/_build/
-apidoc/
-typedoc/
-
-# ============================================
-# ✅ ARCHIVOS QUE SÍ DEBEN SUBIRSE (Referencia)
-# ============================================
-# ✅ package.json
-# ✅ tsconfig.json
-# ✅ src/**
-# ✅ Dockerfile
-# ✅ docker-compose.yml
-# ✅ .env.example
-# ✅ schema.sql / seeds.sql (estructura, no datos sensibles)

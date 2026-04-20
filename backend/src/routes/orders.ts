@@ -1,7 +1,8 @@
 // ============================================================
-// backend/src/routes/orders.ts  —  Fase 4 (actualizado)
+// backend/src/routes/orders.ts  —  Fase 5 (actualizado)
 //
-// NUEVO: POST /api/orders/:id/close (cierra pedido, genera recibo)
+// FIX AUDITORÍA: GET /active ahora incluye rol 'mesero'.
+// El mesero necesitará ver órdenes activas en Fase 6.
 // ============================================================
 
 import { Router } from 'express';
@@ -11,9 +12,9 @@ import {
   updateOrderStatus,
   getActiveOrders,
 } from '../controllers/orderController';
-import { closeOrder } from '../controllers/cajaController';
+import { closeOrder }  from '../controllers/cajaController';
 import { authenticate } from '../middleware/auth';
-import { requireRole } from '../middleware/roleAuth';
+import { requireRole }  from '../middleware/roleAuth';
 
 const router = Router();
 
@@ -21,18 +22,18 @@ const router = Router();
 // Si /:id va primero, Express interpreta "active" como un UUID
 // y el endpoint nunca se alcanza.
 
-// ── Rutas específicas (sin parámetros dinámicos) ─────────────
+// Rutas específicas
 router.get(
   '/active',
   authenticate,
-  requireRole(['caja', 'cocina', 'admin']),
+  requireRole(['caja', 'cocina', 'mesero', 'admin']),  // ← FIX: agregado 'mesero'
   getActiveOrders
 );
 
-// ── Ruta pública: crear orden (cliente sin login) ────────────
+// Ruta pública: crear orden (cliente sin login)
 router.post('/', createOrder);
 
-// ── Rutas con parámetro /:id — van AL FINAL ──────────────────
+// Rutas con parámetro /:id — van AL FINAL
 router.get('/:id', getOrderById);
 
 router.patch(
