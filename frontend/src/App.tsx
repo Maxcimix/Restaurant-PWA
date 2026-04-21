@@ -1,7 +1,11 @@
 // ============================================================
-// frontend/src/App.tsx  —  Fase 5 (actualizado)
+// frontend/src/App.tsx  —  Fase 6 (actualizado)
 //
-// CAMBIO: /cocina/kds ahora carga KDS.tsx real en lugar de <Soon>
+// NUEVAS RUTAS:
+//   /mesero/dashboard       → TableDashboard (ProtectedRoute mesero/admin)
+//   /mesero/orden/:tableId  → TakeOrder      (ProtectedRoute mesero/admin)
+//
+// Se mantienen todas las rutas anteriores sin modificar.
 // ============================================================
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -18,8 +22,12 @@ import OrderTracker      from './pages/OrderTracker';
 // Fase 4
 import CajaAutoservicio  from './pages/caja/CajaAutoservicio';
 
-// Fase 5 — KDS
+// Fase 5
 import KDS               from './pages/cocina/KDS';
+
+// Fase 6
+import TableDashboard    from './pages/mesero/TableDashboard';
+import TakeOrder         from './pages/mesero/TakeOrder';
 
 const Soon = ({ label }: { label: string }) => (
   <div style={{
@@ -60,7 +68,7 @@ export default function App() {
         <Route path="/autoservicio/checkout"    element={<Checkout />} />
         <Route path="/autoservicio/tracker/:id" element={<OrderTracker />} />
 
-        {/* Fase 4: Caja autoservicio */}
+        {/* Fase 4: Caja */}
         <Route
           path="/autoservicio/caja"
           element={
@@ -70,7 +78,7 @@ export default function App() {
           }
         />
 
-        {/* Fase 5: Kitchen Display System */}
+        {/* Fase 5: KDS */}
         <Route
           path="/cocina/kds"
           element={
@@ -80,16 +88,25 @@ export default function App() {
           }
         />
 
-        {/* Fases futuras */}
+        {/* Fase 6: Módulo Mesero */}
         <Route
           path="/mesero/dashboard"
           element={
             <ProtectedRoute allowedRoles={['mesero', 'admin']}>
-              <Soon label="Dashboard Mesero" />
+              <TableDashboard />
             </ProtectedRoute>
           }
         />
-        <Route path="/mesero/menu-cliente" element={<Soon label="Menú Cliente (Mesero)" />} />
+        <Route
+          path="/mesero/orden/:tableId"
+          element={
+            <ProtectedRoute allowedRoles={['mesero', 'admin']}>
+              <TakeOrder />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* Fases futuras */}
         <Route
           path="/caja/dashboard"
           element={
