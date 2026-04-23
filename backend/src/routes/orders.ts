@@ -1,8 +1,8 @@
 // ============================================================
-// backend/src/routes/orders.ts  —  Fase 5 (actualizado)
+// backend/src/routes/orders.ts  —  Fixes multi
 //
-// FIX AUDITORÍA: GET /active ahora incluye rol 'mesero'.
-// El mesero necesitará ver órdenes activas en Fase 6.
+// NUEVO: GET /api/orders/history  — historial del día (FIX 4)
+// NUEVO: GET /api/orders/metrics  — timings operacionales (FIX 5)
 // ============================================================
 
 import { Router } from 'express';
@@ -11,29 +11,45 @@ import {
   getOrderById,
   updateOrderStatus,
   getActiveOrders,
+  getOrderHistory,
 } from '../controllers/orderController';
 import { closeOrder }  from '../controllers/cajaController';
-import { authenticate } from '../middleware/auth';
-import { requireRole }  from '../middleware/roleAuth';
+import { getOrderMetrics } from '../controllers/metricsController';
+import { authenticate }   from '../middleware/auth';
+import { requireRole }    from '../middleware/roleAuth';
 
 const router = Router();
 
-// ── ⚠️ REGLA CRÍTICA: rutas específicas SIEMPRE antes que /:id ──
-// Si /:id va primero, Express interpreta "active" como un UUID
-// y el endpoint nunca se alcanza.
+// ── Rutas específicas (SIEMPRE antes que /:id) ───────────────
 
-// Rutas específicas
+// Órdenes activas — caja, cocina, mesero, admin
 router.get(
   '/active',
   authenticate,
-  requireRole(['caja', 'cocina', 'mesero', 'admin']),  // ← FIX: agregado 'mesero'
+  requireRole(['caja', 'cocina', 'mesero', 'admin']),
   getActiveOrders
 );
 
-// Ruta pública: crear orden (cliente sin login)
+// FIX 4: Historial del día — solo caja y admin
+router.get(
+  '/history',
+  authenticate,
+  requireRole(['caja', 'admin']),
+  getOrderHistory
+);
+
+// FIX 5: Métricas operacionales — solo admin y caja
+router.get(
+  '/metrics',
+  authenticate,
+  requireRole(['caja', 'admin']),
+  getOrderMetrics
+);
+
+// ── Ruta pública: crear orden ────────────────────────────────
 router.post('/', createOrder);
 
-// Rutas con parámetro /:id — van AL FINAL
+// ── Rutas con parámetro /:id ─────────────────────────────────
 router.get('/:id', getOrderById);
 
 router.patch(
@@ -43,7 +59,6 @@ router.patch(
   updateOrderStatus
 );
 
-// Fase 4: cerrar pedido y generar recibo
 router.post(
   '/:id/close',
   authenticate,

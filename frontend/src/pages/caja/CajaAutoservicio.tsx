@@ -1,7 +1,7 @@
 // ============================================================
 // frontend/src/pages/caja/CajaAutoservicio.tsx
-// Ruta: /autoservicio/caja
-// Dashboard Kanban 3 columnas con WebSocket en tiempo real.
+// FIX 4: Agrega botón "Historial de pedidos" en el header.
+// Solo cambia el header — toda la lógica Kanban es idéntica.
 // ============================================================
 
 import { useEffect, useState, useCallback } from 'react';
@@ -13,12 +13,14 @@ import {
   getActiveOrders, updateOrderStatus,
   closeOrder, getOrderDetail,
 } from '../../services/cajaService';
-import OrderCard     from '../../components/caja/OrderCard';
+import OrderCard        from '../../components/caja/OrderCard';
 import PaymentProcessor from '../../components/caja/PaymentProcessor';
-import OrderClose    from '../../components/caja/OrderClose';
+import OrderClose       from '../../components/caja/OrderClose';
+import OrderHistory     from '../../components/shared/OrderHistory';   // FIX 4
 import type { OrderWithMeta, ReceiptData } from '../../types/caja';
 import { COLUMN_STATUSES } from '../../types/caja';
 import '../../styles/caja.css';
+import '../../styles/orderhistory.css';  // FIX 4
 
 export default function CajaAutoservicio() {
   const navigate = useNavigate();
@@ -37,8 +39,8 @@ export default function CajaAutoservicio() {
   const [receipt,       setReceipt]       = useState<ReceiptData | undefined>();
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError,   setActionError]   = useState<string | null>(null);
+  const [showHistory,   setShowHistory]   = useState(false);   // FIX 4
 
-  // Carga inicial de órdenes activas
   useEffect(() => {
     setLoading(true);
     getActiveOrders()
@@ -46,10 +48,8 @@ export default function CajaAutoservicio() {
       .catch((e: Error) => setError(e.message));
   }, []); // eslint-disable-line
 
-  // WebSocket en tiempo real
   useCajaWebSocket(token);
 
-  // Beep sintético al recibir nueva orden
   useEffect(() => {
     if (!newOrderAlert) return;
     try {
@@ -67,18 +67,16 @@ export default function CajaAutoservicio() {
     clearAlert();
   }, [newOrderAlert, clearAlert]);
 
-  // Refresco de elapsed cada minuto
   useEffect(() => {
     const t = setInterval(() => setOrders([...orders]), 60_000);
     return () => clearInterval(t);
   }, [orders, setOrders]);
 
-  // Enviar orden a cocina
   const handleValidate = useCallback(async (orderId: string) => {
     setActionLoading(true);
     setActionError(null);
     try {
-      await getOrderDetail(orderId); // valida que existe
+      await getOrderDetail(orderId);
       await updateOrderStatus(orderId, 'sent_to_kitchen');
       updateStatus(orderId, 'sent_to_kitchen');
       setValidateModal(null);
@@ -89,7 +87,6 @@ export default function CajaAutoservicio() {
     }
   }, [updateStatus]);
 
-  // Cerrar pedido
   const handleClose = useCallback(async (orderId: string) => {
     setActionLoading(true);
     setActionError(null);
@@ -105,7 +102,6 @@ export default function CajaAutoservicio() {
     }
   }, [removeOrder]);
 
-  // Filtrar y ordenar por columna
   const col = (key: keyof typeof COLUMN_STATUSES) =>
     orders
       .filter((o) => COLUMN_STATUSES[key].includes(o.status))
@@ -117,7 +113,6 @@ export default function CajaAutoservicio() {
 
   return (
     <div className="caja-root">
-      {/* Header */}
       <header className="caja-header">
         <div className="caja-header-left">
           <div className="caja-logo">
@@ -138,6 +133,19 @@ export default function CajaAutoservicio() {
             <span className="stat-pill stat-orange">{enCocina.length} en cocina</span>
             <span className="stat-pill stat-green">{listos.length} listos</span>
           </div>
+          {/* FIX 4: Botón historial */}
+          <button
+            type="button"
+            className="history-trigger-btn"
+            onClick={() => setShowHistory(true)}
+            aria-label="Ver historial de pedidos del día"
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M7.5 4.5v3l2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            Historial
+          </button>
           <button className="caja-exit-btn" onClick={() => navigate('/')}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
@@ -148,7 +156,6 @@ export default function CajaAutoservicio() {
         </div>
       </header>
 
-      {/* Banner de error */}
       {(error || actionError) && (
         <div className="caja-error-banner">
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -160,7 +167,6 @@ export default function CajaAutoservicio() {
         </div>
       )}
 
-      {/* Loading */}
       {loading ? (
         <div className="caja-loading">
           <div className="caja-spinner" />
@@ -168,8 +174,6 @@ export default function CajaAutoservicio() {
         </div>
       ) : (
         <div className="caja-kanban">
-
-          {/* Columna Pendientes */}
           <div className="kanban-col">
             <div className="col-header col-header--yellow">
               <div className="col-dot dot-yellow" />
@@ -178,7 +182,7 @@ export default function CajaAutoservicio() {
             </div>
             <div className="col-body">
               {pendientes.length === 0
-                ? <EmptyCol icon="check" text="Sin órdenes pendientes" />
+                ? <div className="col-empty"><span>Sin órdenes pendientes</span></div>
                 : pendientes.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
@@ -189,7 +193,6 @@ export default function CajaAutoservicio() {
             </div>
           </div>
 
-          {/* Columna En cocina */}
           <div className="kanban-col">
             <div className="col-header col-header--orange">
               <div className="col-dot dot-orange" />
@@ -198,7 +201,7 @@ export default function CajaAutoservicio() {
             </div>
             <div className="col-body">
               {enCocina.length === 0
-                ? <EmptyCol icon="fire" text="Cocina sin órdenes" />
+                ? <div className="col-empty"><span>Cocina sin órdenes</span></div>
                 : enCocina.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
@@ -209,7 +212,6 @@ export default function CajaAutoservicio() {
             </div>
           </div>
 
-          {/* Columna Listos */}
           <div className="kanban-col">
             <div className="col-header col-header--green">
               <div className="col-dot dot-green" />
@@ -218,7 +220,7 @@ export default function CajaAutoservicio() {
             </div>
             <div className="col-body">
               {listos.length === 0
-                ? <EmptyCol icon="bag" text="Nada listo aún" />
+                ? <div className="col-empty"><span>Nada listo aún</span></div>
                 : listos.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
@@ -231,7 +233,6 @@ export default function CajaAutoservicio() {
         </div>
       )}
 
-      {/* Modales */}
       {validateModal && (
         <PaymentProcessor
           order={validateModal}
@@ -249,36 +250,11 @@ export default function CajaAutoservicio() {
           loading={actionLoading}
         />
       )}
-    </div>
-  );
-}
 
-// ── Componente auxiliar para columna vacía ───────────────────
-function EmptyCol({ icon, text }: { icon: string; text: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    check: (
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-        <circle cx="18" cy="18" r="14" stroke="currentColor" strokeWidth="1.5" opacity="0.25"/>
-        <path d="M11 18l4.5 4.5 9.5-9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" opacity="0.3"/>
-      </svg>
-    ),
-    fire: (
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-        <path d="M18 6c0 4-4 7-4 11a7 7 0 1014 0c0-4-4-6-4-8-2 2-2 4-2 5-2-2-4-5-4-8z"
-          stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.25"/>
-      </svg>
-    ),
-    bag: (
-      <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
-        <rect x="6" y="14" width="24" height="16" rx="2" stroke="currentColor" strokeWidth="1.5" opacity="0.25"/>
-        <path d="M13 14v-3a5 5 0 0110 0v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.25"/>
-      </svg>
-    ),
-  };
-  return (
-    <div className="col-empty">
-      {icons[icon]}
-      <span>{text}</span>
+      {/* FIX 4: Modal de historial */}
+      {showHistory && (
+        <OrderHistory onClose={() => setShowHistory(false)} />
+      )}
     </div>
   );
 }

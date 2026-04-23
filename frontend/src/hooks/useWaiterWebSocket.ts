@@ -1,12 +1,13 @@
 // ============================================================
-// frontend/src/hooks/useWaiterWebSocket.ts  —  Fase 6
+// frontend/src/hooks/useWaiterWebSocket.ts  —  Fix 1 & 3
 //
-// WebSocket para el módulo mesero.
-// Se conecta con ?role=mesero → recibe broadcast global de:
-//   - order:status (para actualizar estado de sus mesas)
-//   - table:status (cuando caja u otro mesero actualiza una mesa)
+// FIX 1: Escucha table:status con status='occupied' para
+//   actualizar la tarjeta de mesa inmediatamente cuando
+//   el mesero crea una orden (backend ahora emite ese evento).
 //
-// Patrón idéntico a useCajaWebSocket.ts y useKitchenSocket.ts
+// FIX 3: Escucha order:status y actualiza current_order_status
+//   en la tarjeta de la mesa para mostrar el progreso en tiempo
+//   real (En cocina / Preparando / Listo).
 // ============================================================
 
 import { useEffect, useRef, useCallback } from 'react';
@@ -45,21 +46,24 @@ export function useWaiterWebSocket(token: string | null) {
         };
 
         switch (type) {
-          // Cambio de status de una orden — actualizar mesa asociada
+
+          // FIX 3: Cambio de status de una orden
+          // Actualiza el badge de estado en la tarjeta de la mesa
           case 'order:status': {
             const status  = payload.status  as OrderStatus;
             const tableId = payload.tableId as string | null;
 
-            if (!tableId) break; // orden de autoservicio, ignorar
+            if (!tableId) break; // orden de autoservicio sin mesa
 
-            // Sincronizar estado de la mesa según el status de la orden
             if (['completed', 'cancelled'].includes(status)) {
+              // La mesa vuelve a available (la libera caja)
               updateTableStatus(tableId, 'available', {
                 current_order_id:     null,
                 current_order_number: null,
                 current_order_status: null,
               });
             } else {
+              // FIX 3: Actualizar solo el badge de estado — la mesa sigue 'occupied'
               updateTableStatus(tableId, 'occupied', {
                 current_order_status: status,
               });
@@ -67,11 +71,37 @@ export function useWaiterWebSocket(token: string | null) {
             break;
           }
 
-          // El backend emite este evento cuando se actualiza una mesa
+          // FIX 1: Backend emite table:status cuando se crea una orden
+          // Esto actualiza la tarjeta de mesa en tiempo real
           case 'table:status': {
+            const tableId    = payload.tableId as string;
+            const tableStatus = payload.status as TableStatus;
+            const extra: Record<string, unknown> = {};
+
+            // Si viene con datos de la orden, incluirlos
+            if (payload.orderId)     extra.current_order_id     = payload.orderId;
+            if (payload.orderNumber) extra.current_order_number = payload.orderNumber;
+            if (payload.orderStatus) extra.current_order_status = payload.orderStatus;
+
+            // Si se libera la mesa, limpiar datos de la orden
+            if (tableStatus === 'available') {
+              extra.current_order_id     = null;
+              extra.current_order_number = null;
+              extra.current_order_status = null;
+            }
+
+            updateTableStatus(tableId, tableStatus, extra);
+            break;
+          }
+
+          // Mesa liberada por caja
+          case 'table:released': {
             const tableId = payload.tableId as string;
-            const status  = payload.status  as TableStatus;
-            updateTableStatus(tableId, status);
+            updateTableStatus(tableId, 'available', {
+              current_order_id:     null,
+              current_order_number: null,
+              current_order_status: null,
+            });
             break;
           }
 
@@ -84,7 +114,6 @@ export function useWaiterWebSocket(token: string | null) {
     };
 
     ws.onerror  = (e) => console.error('[WS Mesero] Error:', e);
-
     ws.onclose  = () => {
       if (!isMounted.current) return;
       reconnectTimer.current = setTimeout(() => {

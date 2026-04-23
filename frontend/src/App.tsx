@@ -1,11 +1,8 @@
 // ============================================================
-// frontend/src/App.tsx  —  Fase 6 (actualizado)
+// frontend/src/App.tsx  —  Fase 7 (actualizado)
 //
-// NUEVAS RUTAS:
-//   /mesero/dashboard       → TableDashboard (ProtectedRoute mesero/admin)
-//   /mesero/orden/:tableId  → TakeOrder      (ProtectedRoute mesero/admin)
-//
-// Se mantienen todas las rutas anteriores sin modificar.
+// CAMBIO: /caja/dashboard ahora carga CajaMesero.tsx (Fase 7)
+// en lugar del componente <Soon>.
 // ============================================================
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
@@ -28,6 +25,9 @@ import KDS               from './pages/cocina/KDS';
 // Fase 6
 import TableDashboard    from './pages/mesero/TableDashboard';
 import TakeOrder         from './pages/mesero/TakeOrder';
+
+// Fase 7
+import CajaMesero        from './pages/cashier/CajaMesero';
 
 const Soon = ({ label }: { label: string }) => (
   <div style={{
@@ -68,7 +68,7 @@ export default function App() {
         <Route path="/autoservicio/checkout"    element={<Checkout />} />
         <Route path="/autoservicio/tracker/:id" element={<OrderTracker />} />
 
-        {/* Fase 4: Caja */}
+        {/* Fase 4: Caja autoservicio */}
         <Route
           path="/autoservicio/caja"
           element={
@@ -106,15 +106,17 @@ export default function App() {
           }
         />
 
-        {/* Fases futuras */}
+        {/* Fase 7: Caja Con Mesero */}
         <Route
           path="/caja/dashboard"
           element={
             <ProtectedRoute allowedRoles={['caja', 'admin']}>
-              <Soon label="Caja — Modo Mesero" />
+              <CajaMesero />
             </ProtectedRoute>
           }
         />
+
+        {/* Fase futura: Admin */}
         <Route
           path="/admin/dashboard"
           element={
