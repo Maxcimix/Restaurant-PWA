@@ -1,0 +1,101 @@
+@import url('https://fonts.googleapis.com/css2?family=Cabinet+Grotesk:wght@400;700;800;900&family=Satoshi:wght@300;400;500&display=swap');
+
+:root {
+  --o: #FF6B35; --o-dim: rgba(249,115,22,0.15); --o-border: rgba(249,115,22,0.25);
+  --b: #515154; --b-dim: rgba(59,130,246,0.15);  --b-border: rgba(59,130,246,0.25);
+  --surface: rgba(255,255,255,0.035); --border: rgba(28,20,16,0.08);
+  --text: #1D1D1F; --muted: #98989D;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+button { cursor: pointer; font-family: inherit; border: none; background: none; }
+
+.home-root {
+  min-height: 100svh; background: #F5F6F8; color: var(--text);
+  font-family: 'Satoshi', sans-serif;
+  display: flex; align-items: center; justify-content: center;
+  position: relative; overflow: hidden;
+}
+
+.home-bg { display: none; }
+.blob    { display: none; }
+.noise   { display: none; }
+.grid-overlay { display: none; }
+@keyframes homeFloat { from {} to {} }
+
+.home-wrap {
+  position: relative; z-index: 1;
+  width: 100%; max-width: 1000px;
+  padding: 48px 28px 40px;
+  display: flex; flex-direction: column; gap: 52px;
+}
+
+/* Logo */
+.home-logo { display: flex; align-items: center; gap: 14px; }
+.logo-hex {
+  width: 48px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 14px; border: 1px solid rgba(201,79,44,0.20);
+  background: rgba(249,115,22,0.06);
+}
+.logo-wordmark { display: flex; flex-direction: column; gap: 1px; }
+.logo-main {
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-weight: 900; font-size: 20px; letter-spacing: -0.5px; color: var(--text);
+}
+.logo-tag { font-size: 11px; letter-spacing: 1.5px; color: var(--muted); text-transform: uppercase; }
+
+/* Hero */
+.home-hero { display: flex; flex-direction: column; gap: 14px; }
+.eyebrow { font-size: 12px; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+.home-h1 {
+  font-family: 'Cabinet Grotesk', sans-serif;
+  font-size: clamp(38px, 6.5vw, 68px); font-weight: 900;
+  letter-spacing: -2px; line-height: 1.04; color: var(--text);
+}
+.gradient-text {
+  color: #FF6B35;
+  -webkit-text-fill-color: #FF6B35;
+}
+.home-sub { font-size: 17px; color: var(--muted); max-width: 460px; line-height: 1.65; font-weight: 300; }
+
+/* Cards */
+.mode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px,1fr)); gap: 20px; }
+
+.mode-card {
+  position: relative; overflow: hidden;
+  background: #FFFFFF;
+  border: 1.5px solid #E8E8ED;
+  border-radius: 22px; padding: 28px; text-align: left;
+  display: flex; flex-direction: column; gap: 20px;
+  transition: transform 0.3s, border-color 0.3s, box-shadow 0.3s;
+}
+.card-orange { background: #FFFFFF; border-color: #E8E8ED; }
+.card-blue   { background: #FFFFFF; border-color: #E8E8ED; }
+.mode-card:hover { transform: translateY(-5px); }
+.card-orange:hover { border-color: #FF6B35; box-shadow: 0 16px 48px rgba(255,107,53,0.14); }
+.card-blue:hover   { border-color: #2A4D6A; box-shadow: 0 16px 48px rgba(42,77,106,0.12); }
+
+.card-bg-glow { display: none; }
+.glow-o { display: none; }
+.glow-b { display: none; }
+
+.card-num { font-family: 'Cabinet Grotesk', sans-serif; font-size: 42px; font-weight: 900; color: rgba(0,0,0,0.05); line-height: 1; letter-spacing: -2px; }
+
+.card-h2 { font-family: 'Cabinet Grotesk', sans-serif; font-size: 28px; font-weight: 800; letter-spacing: -0.8px; color: var(--text); }
+.card-p  { font-size: 14px; color: var(--muted); line-height: 1.65; font-weight: 300; }
+
+.card-roles-row { display: flex; flex-wrap: wrap; gap: 6px; }
+.role-chip { font-size: 11px; font-weight: 500; padding: 3px 10px; border-radius: 6px; letter-spacing: 0.3px; }
+.chip-o { background: var(--o-dim); color: #FF6B35; }
+.chip-b { background: var(--b-dim); color: #515154; }
+
+.card-cta { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: #D1D1D8; transition: color 0.25s; margin-top: auto; }
+.card-orange:hover .card-cta { color: var(--o); }
+.card-blue:hover   .card-cta { color: var(--b); }
+
+.home-foot { text-align: center; font-size: 12px; color: #D1D1D8; letter-spacing: 1px; }
+.card-top { display: flex; justify-content: space-between; align-items: center; }
+.card-badge { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; padding: 5px 12px; border-radius: 6px; }
+.badge-o { background: #FFF3EE; color: #FF6B35; border: 1px solid #FFD0BC; }
+.badge-b { background: #EEF2F7; color: #2A4D6A; border: 1px solid #C0CCDA; }
