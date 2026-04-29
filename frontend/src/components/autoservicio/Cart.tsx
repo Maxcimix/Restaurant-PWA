@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import './cart.css';
 
+
 interface CartProps {
   isOpen: boolean;
   onClose: () => void;

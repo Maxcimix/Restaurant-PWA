@@ -77,7 +77,93 @@ export default function TableRelease({ onReleased, onClose }: Props) {
   }
 
   function handlePrint() {
-    window.print();
+    // window.print() falla en Edge con Trusted Types activado.
+    // Generamos un HTML standalone como Blob y lo abrimos en pestaña nueva,
+    // donde el navegador muestra el diálogo de impresión sin restricciones.
+    const METHOD_LABEL = METHOD_LABELS[receipt.method] ?? receipt.method;
+    const paidAtStr    = new Date(receipt.paidAt).toLocaleString('es');
+
+    const rows = receipt.items.map((item) =>
+      `<tr>
+        <td>${item.name}${item.specialInstructions ? ` <em>(${item.specialInstructions})</em>` : ''}</td>
+        <td class="num">${item.quantity}</td>
+        <td class="num">$${item.unitPrice.toFixed(2)}</td>
+        <td class="num">$${item.subtotal.toFixed(2)}</td>
+      </tr>`
+    ).join('');
+
+    const tipRow = receipt.tip > 0
+      ? `<tr><td>Propina</td><td></td><td></td><td class="num">$${receipt.tip.toFixed(2)}</td></tr>`
+      : '';
+
+    const changeRow = receipt.change > 0
+      ? `<tr class="change"><td colspan="3">Cambio</td><td class="num">$${receipt.change.toFixed(2)}</td></tr>`
+      : '';
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Comprobante ${receipt.orderNumber}</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;font-size:13px;padding:24px;max-width:420px;margin:auto;color:#111}
+    h1{font-size:18px;margin-bottom:2px}
+    .sub{color:#555;font-size:12px;margin-bottom:16px}
+    table{width:100%;border-collapse:collapse;margin:12px 0}
+    th{text-align:left;border-bottom:1px solid #ccc;padding:4px 2px;font-size:11px;color:#555}
+    td{padding:4px 2px}
+    .num{text-align:right}
+    .divider{border-top:1px solid #ccc;margin:4px 0}
+    .total td{font-weight:700;font-size:15px}
+    .tip td{color:#f59e0b}
+    .change td{color:#22c55e;font-weight:600}
+    .meta{background:#f5f5f5;border-radius:6px;padding:10px;margin-bottom:14px;font-size:12px;line-height:1.7}
+    .footer{margin-top:20px;text-align:center;color:#888;font-size:11px;border-top:1px dashed #ccc;padding-top:12px}
+    @media print{body{padding:0}}
+  </style>
+</head>
+<body>
+  <h1>RestaurantPWA</h1>
+  <p class="sub">Comprobante de pago · ${receipt.orderNumber}</p>
+  <div class="meta">
+    <div><strong>Mesa</strong> ${receipt.tableNumber}${receipt.section ? ` · ${receipt.section}` : ''}</div>
+    ${receipt.waiterName ? `<div><strong>Mesero</strong> ${receipt.waiterName}</div>` : ''}
+    <div><strong>Método</strong> ${METHOD_LABEL}${receipt.reference ? ` · Ref: ${receipt.reference}` : ''}</div>
+    <div><strong>Fecha</strong> ${paidAtStr}</div>
+  </div>
+  <table>
+    <thead><tr><th>Item</th><th class="num">Cant.</th><th class="num">P/U</th><th class="num">Subtotal</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <table>
+    <tbody>
+      <tr><td colspan="3">Subtotal</td><td class="num">$${receipt.subtotal.toFixed(2)}</td></tr>
+      <tr><td colspan="3">IVA (8%)</td><td class="num">$${receipt.tax.toFixed(2)}</td></tr>
+      ${tipRow}
+      <tr class="divider"><td colspan="4"><hr/></td></tr>
+      <tr class="total"><td colspan="3">TOTAL</td><td class="num">$${receipt.total.toFixed(2)}</td></tr>
+      <tr><td colspan="3">Recibido</td><td class="num">$${receipt.amountPaid.toFixed(2)}</td></tr>
+      ${changeRow}
+    </tbody>
+  </table>
+  <div class="footer"><p>¡Gracias por su visita!</p></div>
+  <script>window.onload=()=>window.print();</script>
+</body>
+</html>`;
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url  = URL.createObjectURL(blob);
+    const win  = window.open(url, '_blank');
+    if (!win) {
+      // fallback: descarga directa como archivo
+      const a  = document.createElement('a');
+      a.href   = url;
+      a.download = `comprobante-${receipt.orderNumber}.html`;
+      a.click();
+    }
+    // Liberar la URL del blob después de un momento
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   return (

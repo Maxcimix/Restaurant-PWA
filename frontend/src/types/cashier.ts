@@ -121,3 +121,43 @@ export interface WsTableReleasedEvent {
   tableNumber: number;
   status:      'available';
 }
+// ── Panel monitor de caja (visible desde sent_to_kitchen) ────
+
+/** Orden en el panel de monitoreo de caja.
+ *  Se muestra desde que el mesero la envía a cocina.
+ *  Caja solo puede cobrar cuando status === 'waiting_bill'.
+ */
+export interface MonitorOrder {
+  orderId:       string;
+  orderNumber:   string;
+  tableId:       string | null;
+  tableNumber:   number | null;
+  waiterName:    string | null;
+  status:        string;
+  paymentMethod: string | null;
+  tip:           number;
+  subtotal:      number;
+  tax:           number;
+  total:         number;
+  createdAt:     string;
+  items:         MonitorOrderItem[];
+}
+
+export interface MonitorOrderItem {
+  name:     string;
+  quantity: number;
+  notes:    string | null;
+}
+
+/** Evento WebSocket que llega cuando el mesero solicita la cuenta */
+export interface WsBillRequestedEvent {
+  orderId:       string;
+  orderNumber:   string;
+  tableId:       string;
+  paymentMethod: string;
+  tip:           number;
+  subtotal:      number;
+  tax:           number;
+  total:         number;
+  status:        'waiting_bill';
+}

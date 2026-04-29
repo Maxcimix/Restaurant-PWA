@@ -18,9 +18,9 @@ const DEFAULT: RestaurantSettings = {
   name:           'RestaurantPWA',
   address:        '',
   phone:          '',
-  tax_rate:       8,
+  tax_rate:       19,
   tip_suggestion: 10,
-  currency:       'USD',
+  currency:       'COP',
   timezone:       'America/Bogota',
 };
 

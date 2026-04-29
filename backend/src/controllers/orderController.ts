@@ -1,13 +1,23 @@
 // ============================================================
 // backend/src/controllers/orderController.ts
 //
-// FIX 1: Al crear una orden con source='waiter', la mesa
-//   pasa automáticamente a 'occupied' en la misma transacción.
-//   Antes el mesero tenía que cambiarla manualmente.
+// CAMBIOS DE FLUJO (Solicitud de cuenta separada):
 //
-// FLUJO MESERO: orden nace como 'sent_to_kitchen' → va directo al KDS.
-//   El broadcast de order:new incluye tableId para que el dashboard
-//   del mesero actualice en tiempo real.
+//  createOrder:
+//    - payment_method OPCIONAL para source='waiter' (se define cuando
+//      el cliente pide la cuenta, no al tomar el pedido).
+//
+//  updateOrderStatus:
+//    - Al marcar 'delivered', la mesa queda en 'occupied', NO en
+//      'waiting_bill'. El cliente puede seguir en la mesa; la cuenta
+//      se solicita explícitamente con el nuevo endpoint.
+//
+//  requestBill (NUEVO):
+//    - PATCH /api/orders/:id/request-bill
+//    - El mesero la llama cuando el cliente pide la cuenta.
+//    - Recibe payment_method, tip, notas. Actualiza la orden y cambia
+//      la mesa a 'waiting_bill'. Caja interviene a partir de aquí.
+//
 // ============================================================
 
 import { Request, Response } from 'express';
@@ -33,7 +43,7 @@ export async function createOrder(req: Request, res: Response) {
     const { table_id, items, payment_method, notes, source = 'autoservicio', waiter_id } = req.body as {
       table_id:  string | null;
       items:     OrderItemInput[];
-      payment_method: string;
+      payment_method?: string | null;   // Opcional para source='waiter': se define al solicitar cuenta
       notes?:    string;
       source?:   string;
       waiter_id?: string;
@@ -122,7 +132,7 @@ export async function createOrder(req: Request, res: Response) {
         tax.toFixed(2),
         total.toFixed(2),
         initialStatus,
-        payment_method,
+        source === 'waiter' ? null : (payment_method ?? null),   // waiter: sin método todavía
         source,
         notes ?? null,
       ]
@@ -157,18 +167,37 @@ export async function createOrder(req: Request, res: Response) {
 
     await client.query('COMMIT');
 
-    // FIX 3: El broadcast de order:new va SIN targetOrderId para que
-    // caja y cocina (isGlobalRole) lo reciban. El payload incluye tableId
-    // para que el mesero pueda actualizar el estado de su mesa.
+    // Obtener items CON nombres ANTES del broadcast para incluirlos en el payload.
+    // Antes este query estaba después del broadcast, por lo que order:new llegaba
+    // al panel monitor de caja sin items y los cards aparecían vacíos.
+    const itemsResult = await pool.query(
+      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+              oi.special_instructions, oi.status, mi.name
+       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
+       WHERE oi.order_id = $1`,
+      [order.id]
+    );
+
+    // Broadcast order:new con items incluidos para que el monitor de caja
+    // y la cocina tengan la información de platos desde el primer momento.
     broadcast({
       type: 'order:new',
       payload: {
         orderId:     order.id,
         orderNumber: order.order_number,
         tableId:     order.table_id,
+        tableNumber: (order as { table_number?: number }).table_number ?? null,
+        waiterName:  (order as { waiter_name?: string }).waiter_name ?? null,
+        subtotal:    parseFloat(order.subtotal),
+        tax:         parseFloat(order.tax),
         total:       parseFloat(order.total),
         status:      order.status,
         source:      order.source,
+        items: itemsResult.rows.map((i: { name: string; quantity: number; special_instructions: string | null }) => ({
+          name:     i.name,
+          quantity: i.quantity,
+          notes:    i.special_instructions,
+        })),
       },
     });
 
@@ -186,14 +215,6 @@ export async function createOrder(req: Request, res: Response) {
         },
       });
     }
-
-    const itemsResult = await pool.query(
-      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
-              oi.special_instructions, oi.status, mi.name
-       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
-       WHERE oi.order_id = $1`,
-      [order.id]
-    );
 
     return res.status(201).json({ ...order, items: itemsResult.rows });
   } catch (err) {
@@ -279,19 +300,20 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
     const updated = result.rows[0];
 
-    // Cuando el mesero entrega el pedido → mesa pasa a waiting_bill
-    // para que caja la vea en su dashboard de cobro
+    // Cuando el mesero entrega el pedido → la mesa queda en 'occupied'.
+    // El cliente sigue en la mesa; puede pedir más cosas o pedir la cuenta.
+    // La mesa pasa a 'waiting_bill' SOLO cuando el mesero llama a
+    // PATCH /api/orders/:id/request-bill (cliente pidió la cuenta).
     if (status === 'delivered' && updated.table_id) {
       await pool.query(
-        `UPDATE tables SET status = 'waiting_bill' WHERE id = $1`,
+        `UPDATE tables SET status = 'occupied' WHERE id = $1`,
         [updated.table_id]
       );
-      // Avisar al dashboard del mesero que la mesa cambió
       broadcast({
         type: 'table:status',
         payload: {
           tableId:     updated.table_id,
-          status:      'waiting_bill',
+          status:      'occupied',
           orderStatus: 'delivered',
           orderId:     updated.id,
           orderNumber: updated.order_number,
@@ -433,5 +455,140 @@ export async function getOrderHistory(req: Request, res: Response) {
   } catch (err) {
     console.error('[orders/history]', err);
     return res.status(500).json({ message: 'Error al obtener historial' });
+  }
+}
+// ── PATCH /api/orders/:id/request-bill ───────────────────────
+// El mesero llama a este endpoint cuando el cliente pide la cuenta.
+// Recibe: payment_method, tip (propina), notas opcionales.
+// Actualiza la orden con esos datos y cambia la mesa a waiting_bill.
+// A partir de aquí, caja puede ver la mesa y cobrarla.
+// SOLO el mesero (o admin) puede llamar este endpoint.
+export async function requestBill(req: Request, res: Response) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { payment_method, tip = 0, notes } = req.body as {
+      payment_method: string;
+      tip?:           number;
+      notes?:         string;
+    };
+
+    const validMethods = ['efectivo', 'tarjeta_debito', 'tarjeta_credito', 'transferencia', 'tarjeta'];
+    if (!validMethods.includes(payment_method)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Método de pago inválido' });
+    }
+
+    // Verificar que la orden existe y está en estado delivered (o delivered/occupied)
+    const orderResult = await client.query(
+      `SELECT id, order_number, status, table_id, total, subtotal, tax
+       FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (!orderResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Solo se puede solicitar cuenta si la orden fue entregada
+    if (!['delivered', 'sent_to_kitchen', 'in_preparation', 'ready_for_pickup'].includes(order.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: `No se puede solicitar cuenta en estado: ${order.status}`,
+      });
+    }
+
+    const tipAmount    = parseFloat(String(tip)) || 0;
+    const totalWithTip = parseFloat(order.total) + tipAmount;
+
+    // Actualizar la orden: guardar método de pago, propina, nuevo total, status
+    const updated = await client.query(
+      `UPDATE orders
+       SET payment_method = $1,
+           tip            = $2,
+           total          = $3,
+           status         = 'waiting_bill',
+           notes          = COALESCE($4, notes),
+           updated_at     = NOW()
+       WHERE id = $5
+       RETURNING id, order_number, status, table_id, payment_method, tip, total, subtotal, tax`,
+      [payment_method, tipAmount.toFixed(2), totalWithTip.toFixed(2), notes ?? null, id]
+    );
+
+    const updatedOrder = updated.rows[0];
+
+    // Cambiar mesa a waiting_bill — ahora sí interviene caja
+    if (updatedOrder.table_id) {
+      await client.query(
+        `UPDATE tables SET status = 'waiting_bill' WHERE id = $1`,
+        [updatedOrder.table_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Broadcast: la orden ahora está en waiting_bill con datos de pago
+    broadcast({
+      type:    'order:bill_requested',
+      payload: {
+        orderId:       updatedOrder.id,
+        orderNumber:   updatedOrder.order_number,
+        tableId:       updatedOrder.table_id,
+        paymentMethod: updatedOrder.payment_method,
+        tip:           parseFloat(updatedOrder.tip   ?? '0'),
+        subtotal:      parseFloat(updatedOrder.subtotal),
+        tax:           parseFloat(updatedOrder.tax),
+        total:         parseFloat(updatedOrder.total),
+        status:        'waiting_bill',
+      },
+    });
+
+    // También broadcast table:status para que el dashboard del mesero
+    // y el panel de caja actualicen la mesa en tiempo real
+    if (updatedOrder.table_id) {
+      broadcast({
+        type: 'table:status',
+        payload: {
+          tableId:     updatedOrder.table_id,
+          status:      'waiting_bill',
+          orderStatus: 'waiting_bill',
+          orderId:     updatedOrder.id,
+          orderNumber: updatedOrder.order_number,
+        },
+      });
+    }
+
+    // Broadcast order:status genérico para el panel monitor de caja
+    broadcast({
+      type: 'order:status',
+      payload: {
+        orderId:  updatedOrder.id,
+        status:   'waiting_bill',
+        tableId:  updatedOrder.table_id,
+      },
+    });
+
+    return res.json({
+      message:       'Cuenta solicitada correctamente',
+      orderId:       updatedOrder.id,
+      orderNumber:   updatedOrder.order_number,
+      paymentMethod: updatedOrder.payment_method,
+      tip:           parseFloat(updatedOrder.tip   ?? '0'),
+      subtotal:      parseFloat(updatedOrder.subtotal),
+      tax:           parseFloat(updatedOrder.tax),
+      total:         parseFloat(updatedOrder.total),
+      status:        'waiting_bill',
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[orders/requestBill]', err);
+    return res.status(500).json({ message: 'Error al solicitar la cuenta' });
+  } finally {
+    client.release();
   }
 }

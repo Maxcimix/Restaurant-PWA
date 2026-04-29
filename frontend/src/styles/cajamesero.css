@@ -316,6 +316,22 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   display: flex; align-items: center; justify-content: space-between;
 }
 .pf-hint { font-size: 11px; color: var(--c-dim); font-weight: 400; }
+.pf-hint--locked { color: var(--c-accent-green, #22c55e); }
+
+/* Badge de campo bloqueado (método/propina fijada por el mesero) */
+.pm-locked-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: 10px;
+  font-size: 14px; font-weight: 600; color: #22c55e;
+}
+.pm-locked-icon {
+  display: flex; align-items: center;
+  color: rgba(34,197,94,0.6);
+}
+
 .pf-input-wrap { position: relative; display: flex; align-items: center; }
 .pf-currency {
   position: absolute; left: 14px;
@@ -535,4 +551,120 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   .cajam-table-head span:nth-child(3),
   .cajam-table-row span.cajam-waiter { display: none; }
   .payment-methods { grid-template-columns: 1fr 1fr; }
+}
+/* ============================================================
+   Panel Monitor de caja (nuevo)
+   ============================================================ */
+
+.cajam-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.cajam-tab {
+  display: flex; align-items: center; gap: 6px;
+  padding: 10px 18px;
+  border: none; background: none; cursor: pointer;
+  font-size: .88rem; font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all .15s;
+}
+.cajam-tab:hover { color: var(--text-primary, #f1f5f9); }
+.cajam-tab--active {
+  color: #22c55e;
+  border-bottom-color: #22c55e;
+}
+.cajam-tab-badge {
+  background: rgba(255,255,255,.15);
+  color: var(--text-primary, #f1f5f9);
+  font-size: .72rem; font-weight: 700;
+  padding: 1px 7px; border-radius: 20px;
+  min-width: 20px; text-align: center;
+}
+.cajam-tab-badge--urgent {
+  background: rgba(245,158,11,.25);
+  color: #fbbf24;
+}
+
+.cajam-monitor { padding: 16px 20px; }
+.cajam-cobro   { padding: 0; }
+
+.cajam-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+}
+
+/* MonitorCard */
+.mc-card {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,.03);
+  overflow: hidden;
+  transition: border-color .2s;
+}
+.mc-card.ms-ready      { border-color: rgba(16,185,129,.3); }
+.mc-card.ms-bill       { border-color: rgba(245,158,11,.35); }
+.mc-card.ms-preparing  { border-color: rgba(99,102,241,.25); }
+
+.mc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; cursor: pointer; gap: 8px;
+}
+.mc-header:hover { background: rgba(255,255,255,.03); }
+
+.mc-left { display: flex; align-items: center; gap: 10px; }
+.mc-order-num { font-weight: 700; font-size: .9rem; color: var(--text-primary); }
+.mc-table {
+  font-size: .78rem; padding: 2px 8px;
+  background: rgba(255,255,255,.08);
+  border-radius: 20px; color: var(--text-secondary);
+}
+
+.mc-right { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.mc-badge {
+  font-size: .75rem; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.06);
+  color: var(--text-secondary);
+}
+.mc-badge.ms-kitchen   { background: rgba(99,102,241,.15);  color: #a5b4fc; }
+.mc-badge.ms-preparing { background: rgba(139,92,246,.15);  color: #c4b5fd; }
+.mc-badge.ms-ready     { background: rgba(16,185,129,.15);  color: #34d399; }
+.mc-badge.ms-delivered { background: rgba(34,197,94,.12);   color: #86efac; }
+.mc-badge.ms-bill      { background: rgba(245,158,11,.15);  color: #fbbf24; }
+.mc-time { font-size: .75rem; color: var(--text-muted); }
+.mc-expand { font-size: .7rem; color: var(--text-muted); }
+
+.mc-body {
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.mc-waiter { font-size: .8rem; color: var(--text-muted); margin: 0 0 8px; }
+.mc-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mc-item { font-size: .82rem; color: var(--text-secondary); display: flex; flex-direction: column; }
+.mc-item-note { font-size: .73rem; color: var(--text-muted); }
+.mc-total { font-size: .82rem; color: var(--text-secondary); margin-top: 8px; text-align: right; }
+
+/* Notificación urgente de cuentas pendientes */
+.cajam-count-urgent {
+  background: rgba(245,158,11,.2) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245,158,11,.3);
+  animation: billPulse 2s ease-in-out infinite;
+}
+@keyframes billPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .7; }
+}
+
+/* Columna de método de pago en la tabla */
+.cajam-method { display: flex; align-items: center; }
+.cajam-method-badge {
+  font-size: .78rem; padding: 2px 8px;
+  background: rgba(255,255,255,.07);
+  border-radius: 20px; color: var(--text-secondary);
 }

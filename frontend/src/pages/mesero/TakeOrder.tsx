@@ -31,14 +31,6 @@ import { ApiError }                from '../../services/api';
 import type { MenuItem }           from '../../types/menu';
 import '../../styles/takeorder.css';
 
-type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia';
-
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo',      icon: '💵' },
-  { value: 'tarjeta',       label: 'Tarjeta',        icon: '💳' },
-  { value: 'transferencia', label: 'Transferencia',  icon: '📲' },
-];
-
 export default function TakeOrder() {
   const { tableId }  = useParams<{ tableId: string }>();
   const navigate     = useNavigate();
@@ -48,7 +40,7 @@ export default function TakeOrder() {
     tables, setTables,
     cart, initCart,
     addToCart, removeFromCart, updateCartQty, updateItemNotes,
-    setPaymentMethod, setOrderNotes,
+    setOrderNotes,
     clearCart, getCartTotal, getCartItemCount,
     updateTableStatus,
   } = useWaiterStore();
@@ -114,7 +106,6 @@ export default function TakeOrder() {
           quantity:             i.quantity,
           special_instructions: i.notes,
         })),
-        payment_method: cart.paymentMethod,
         notes:          cart.orderNotes,
         waiter_id:      user?.id,
       });
@@ -378,23 +369,6 @@ export default function TakeOrder() {
             />
           </div>
 
-          {/* Método de pago */}
-          <div className="to-payment">
-            <span className="to-payment-label">Método de pago</span>
-            <div className="to-payment-options">
-              {PAYMENT_OPTIONS.map(({ value, label, icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`to-payment-opt ${cart?.paymentMethod === value ? 'to-payment-opt--active' : ''}`}
-                  onClick={() => setPaymentMethod(value)}
-                >
-                  {icon} {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
           {/* Totales */}
           {cart && cart.items.length > 0 && (
             <div className="to-totals">
@@ -435,7 +409,7 @@ export default function TakeOrder() {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M3 9l4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                Enviar orden a caja
+                Enviar a cocina
               </>
             )}
           </button>

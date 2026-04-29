@@ -162,21 +162,12 @@ export default function BillGenerator({ onProceedToPayment, onClose }: Props) {
                   <span>IVA (8%)</span>
                   <span>${activeBill.tax.toFixed(2)}</span>
                 </div>
-                <div className="bill-total-row bill-tip-row no-print">
-                  <span>
-                    Propina sugerida (10%)
-                    <small> — opcional</small>
-                  </span>
-                  <span className="tip-amount">${activeBill.suggestedTip.toFixed(2)}</span>
-                </div>
                 <div className="bill-divider" />
                 <div className="bill-total-row bill-grand-total">
                   <span>TOTAL</span>
                   <span>${activeBill.total.toFixed(2)}</span>
                 </div>
-                <p className="bill-note no-print">
-                  * Propina no incluida en el total. Se agrega al confirmar el pago.
-                </p>
+
               </div>
 
               {/* Footer de impresión */}
