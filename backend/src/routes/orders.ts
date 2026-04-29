@@ -55,7 +55,7 @@ router.get('/:id', getOrderById);
 router.patch(
   '/:id/status',
   authenticate,
-  requireRole(['caja', 'cocina', 'admin']),
+  requireRole(['caja', 'cocina', 'mesero', 'admin']),
   updateOrderStatus
 );
 

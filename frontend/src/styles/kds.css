@@ -15,27 +15,27 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 /* ── Variables de color ── */
 :root {
-  --kds-bg:          #050508;
-  --kds-surface:     #0c0c14;
-  --kds-surface-2:   #111118;
-  --kds-border:      rgba(255,255,255,0.07);
-  --kds-text:        #f0ece6;
-  --kds-text-muted:  #6b6775;
-  --kds-text-dim:    #3a3a4a;
+  --kds-bg:          #F5F6F8;
+  --kds-surface:     rgba(255,255,255,0.92);
+  --kds-surface-2:   #FFFFFF;
+--kds-text:        #1D1D1F;
+--kds-text-muted:  #55556a;
+--kds-text-dim:    #98989D;
+--kds-border:      rgba(28,20,16,0.10);
 
-  --kds-red:         #ef4444;
-  --kds-red-soft:    rgba(239,68,68,0.12);
+  --kds-red:         #CC3333;
+  --kds-red-soft:    #FAEAEA;
   --kds-red-border:  rgba(239,68,68,0.25);
 
-  --kds-orange:      #f97316;
-  --kds-orange-soft: rgba(249,115,22,0.12);
+  --kds-orange:      #FF6B35;
+  --kds-orange-soft: rgba(201,79,44,0.10);
   --kds-orange-border:rgba(249,115,22,0.25);
 
-  --kds-green:       #22c55e;
-  --kds-green-soft:  rgba(34,197,94,0.12);
+  --kds-green:       #30A060;
+  --kds-green-soft:  #EAF7F0;
   --kds-green-border:rgba(34,197,94,0.25);
 
-  --kds-yellow:      #eab308;
+  --kds-yellow:      #C07820;
 }
 
 /* ── Root del KDS ── */
@@ -71,8 +71,8 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 .kds-logo {
   width: 44px; height: 44px; border-radius: 12px;
-  background: rgba(249,115,22,0.1);
-  border: 1px solid rgba(249,115,22,0.2);
+  background: rgba(201,79,44,0.10);
+  border: 1px solid rgba(201,79,44,0.20);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
@@ -102,24 +102,24 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .kds-icon-btn {
   min-width: 44px; min-height: 44px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(28,20,16,0.05);
   border: 1px solid var(--kds-border);
   color: var(--kds-text-muted);
   display: flex; align-items: center; justify-content: center;
   transition: color 0.2s, background 0.2s;
 }
-.kds-icon-btn:hover { color: var(--kds-text); background: rgba(255,255,255,0.09); }
+.kds-icon-btn:hover { color: var(--kds-text); background: rgba(28,20,16,0.09); }
 
 .kds-exit-btn {
   display: flex; align-items: center; gap: 6px;
   min-height: 44px; padding: 0 14px;
   border-radius: 10px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(28,20,16,0.05);
   border: 1px solid var(--kds-border);
   color: var(--kds-text-muted); font-size: 13px;
   transition: color 0.2s, background 0.2s;
 }
-.kds-exit-btn:hover { color: var(--kds-text); background: rgba(255,255,255,0.09); }
+.kds-exit-btn:hover { color: var(--kds-text); background: rgba(28,20,16,0.09); }
 
 /* ── Error banner ── */
 .kds-error-banner {
@@ -143,7 +143,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .kds-spinner {
   width: 40px; height: 40px; border-radius: 50%;
-  border: 3px solid rgba(249,115,22,0.2);
+  border: 3px solid rgba(201,79,44,0.20);
   border-top-color: var(--kds-orange);
   animation: kds-spin 0.8s linear infinite;
 }
@@ -209,7 +209,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .kds-col-count {
   font-size: 12px; font-weight: 700;
   color: var(--kds-text-muted);
-  background: rgba(255,255,255,0.06);
+  background: rgba(28,20,16,0.06);
   padding: 2px 9px; border-radius: 100px;
 }
 
@@ -261,8 +261,8 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   animation: card-in 0.25s ease both, ready-pulse 2s ease-in-out infinite;
 }
 @keyframes ready-pulse {
-  0%,100% { box-shadow: 0 0 0 0 rgba(34,197,94,0.08); }
-  50%     { box-shadow: 0 0 12px 2px rgba(34,197,94,0.12); }
+  0%,100% { box-shadow: 0 0 0 0 #EAF7F0; }
+  50%     { box-shadow: 0 0 12px 2px #EAF7F0; }
 }
 
 /* Header de la tarjeta */
@@ -276,13 +276,14 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 .op-order-number {
   font-family: 'Cabinet Grotesk', sans-serif;
-  font-size: 20px; font-weight: 900; /* grande y legible a distancia */
+  font-size: px; 
+  font-weight: 800; /* grande y legible a distancia */
   color: var(--kds-text); letter-spacing: -0.5px;
 }
 
 .op-source {
   font-size: 11px; color: var(--kds-text-muted);
-  background: rgba(255,255,255,0.05);
+  background: rgba(28,20,16,0.05);
   padding: 3px 9px; border-radius: 100px;
 }
 .op-total {
@@ -322,8 +323,8 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .op-checkbox {
   min-width: 48px; min-height: 48px;
   border-radius: 10px;
-  border: 2px solid rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.04);
+  border: 2px solid rgba(28,20,16,0.12);
+  background: rgba(28,20,16,0.04);
   color: var(--kds-green);
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
@@ -332,7 +333,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .op-checkbox:hover:not(:disabled) {
   border-color: rgba(255,255,255,0.3);
-  background: rgba(255,255,255,0.08);
+  background: rgba(28,20,16,0.08);
 }
 .op-checkbox--checked {
   background: var(--kds-green-soft);
@@ -371,7 +372,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .op-progress-bar {
   flex: 1; height: 4px; border-radius: 100px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(28,20,16,0.08);
   overflow: hidden;
 }
 .op-progress-fill {
@@ -414,7 +415,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 
 .op-btn--ready {
-  background: rgba(255,255,255,0.06);
+  background: rgba(28,20,16,0.06);
   border: 1.5px solid rgba(255,255,255,0.1);
   color: var(--kds-text-muted);
 }
@@ -425,7 +426,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .op-btn--ready-active:hover:not(:disabled) {
   background: rgba(34,197,94,0.25);
-  box-shadow: 0 4px 16px rgba(34,197,94,0.2);
+  box-shadow: 0 4px 16px #A8DBBF;
 }
 
 /* Badge "listo para entregar" */
@@ -451,7 +452,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   white-space: nowrap;
 }
 .kds-timer--green  { background: var(--kds-green-soft);  color: var(--kds-green);  }
-.kds-timer--yellow { background: rgba(234,179,8,0.12);   color: var(--kds-yellow); }
+.kds-timer--yellow { background: #FEF5E0;   color: var(--kds-yellow); }
 .kds-timer--red    {
   background: var(--kds-red-soft); color: var(--kds-red);
   animation: timer-blink 1.5s ease-in-out infinite;

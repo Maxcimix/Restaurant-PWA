@@ -5,12 +5,9 @@
 //   pasa automáticamente a 'occupied' en la misma transacción.
 //   Antes el mesero tenía que cambiarla manualmente.
 //
-// FIX 3: El broadcast de order:new incluye el tableId en el
-//   payload y se hace SIN targetOrderId para que cocina lo
-//   reciba inmediatamente (isGlobalRole). Antes el KDS filtraba
-//   con 'sent_to_kitchen' pero las órdenes del mesero llegan
-//   como 'pending_payment' — el KDS debe ignorarlas hasta que
-//   caja las envíe. El broadcast correcto es al cambiar status.
+// FLUJO MESERO: orden nace como 'sent_to_kitchen' → va directo al KDS.
+//   El broadcast de order:new incluye tableId para que el dashboard
+//   del mesero actualice en tiempo real.
 // ============================================================
 
 import { Request, Response } from 'express';
@@ -106,11 +103,16 @@ export async function createOrder(req: Request, res: Response) {
     const orderNumber = `ORD-${String(seqResult.rows[0].seq).padStart(4, '0')}`;
 
     // Insertar la orden con waiter_id si viene del mesero
+    // FLUJO MESERO: la orden va directo a cocina (sent_to_kitchen).
+    // FLUJO AUTOSERVICIO: primero pasa por caja (pending_payment).
+    const initialStatus = source === 'waiter' ? 'sent_to_kitchen' : 'pending_payment';
+    const sentToKitchenAt = source === 'waiter' ? 'NOW()' : 'NULL';
+
     const orderResult = await client.query(
       `INSERT INTO orders
          (order_number, table_id, waiter_id, subtotal, tax, total, status,
-          payment_method, payment_status, source, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending_payment',$7,'pending',$8,$9)
+          payment_method, payment_status, source, notes, sent_to_kitchen_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,${sentToKitchenAt})
        RETURNING *`,
       [
         orderNumber,
@@ -119,6 +121,7 @@ export async function createOrder(req: Request, res: Response) {
         subtotal.toFixed(2),
         tax.toFixed(2),
         total.toFixed(2),
+        initialStatus,
         payment_method,
         source,
         notes ?? null,
@@ -246,6 +249,12 @@ export async function updateOrderStatus(req: Request, res: Response) {
       return res.status(400).json({ message: `Estado inválido: ${status}` });
     }
 
+    // El mesero solo puede marcar como 'delivered' — nada más
+    const userRole = (req as import('express').Request & { user?: { role: string } }).user?.role;
+    if (userRole === 'mesero' && status !== 'delivered') {
+      return res.status(403).json({ message: 'El mesero solo puede marcar órdenes como entregadas' });
+    }
+
     const timestamps: Record<string, string> = {
       payment_confirmed:  'validated_at = NOW(),',
       pending_validation: 'validated_at = NOW(),',
@@ -269,6 +278,26 @@ export async function updateOrderStatus(req: Request, res: Response) {
     }
 
     const updated = result.rows[0];
+
+    // Cuando el mesero entrega el pedido → mesa pasa a waiting_bill
+    // para que caja la vea en su dashboard de cobro
+    if (status === 'delivered' && updated.table_id) {
+      await pool.query(
+        `UPDATE tables SET status = 'waiting_bill' WHERE id = $1`,
+        [updated.table_id]
+      );
+      // Avisar al dashboard del mesero que la mesa cambió
+      broadcast({
+        type: 'table:status',
+        payload: {
+          tableId:     updated.table_id,
+          status:      'waiting_bill',
+          orderStatus: 'delivered',
+          orderId:     updated.id,
+          orderNumber: updated.order_number,
+        },
+      });
+    }
 
     // FIX 3: broadcast order:status incluye tableId para que el mesero
     // pueda actualizar el badge de estado en la tarjeta de la mesa

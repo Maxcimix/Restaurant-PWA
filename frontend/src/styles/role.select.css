@@ -2,8 +2,8 @@
 
 .rs-root {
   min-height: 100svh;
-  background: #080810;
-  color: #f0ece6;
+  background: #F5F6F8;
+  color: #1D1D1F;
   font-family: 'Satoshi', sans-serif;
   display: flex;
   align-items: flex-start;
@@ -12,29 +12,10 @@
   overflow: hidden;
 }
 
-.rs-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; }
-
-.rs-blob {
-  position: absolute;
-  width: 700px; height: 600px;
-  border-radius: 50%;
-  filter: blur(100px);
-  opacity: 0.1;
-  animation: floatBlob 14s ease-in-out infinite alternate;
-}
-.rb-orange { background: radial-gradient(#f97316, #c2410c); top: -250px; right: -200px; }
-.rb-blue   { background: radial-gradient(#3b82f6, #1e40af); top: -250px; right: -200px; }
-
-.noise {
-  position: absolute; inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
-  opacity: 0.5;
-}
-
-@keyframes floatBlob {
-  from { transform: translate(0, 0) scale(1); }
-  to   { transform: translate(-30px, 40px) scale(1.08); }
-}
+.rs-bg { display: none; }
+.rs-blob { display: none; }
+.noise { display: none; }
+@keyframes floatBlob { from {} to {} }
 
 .rs-wrap {
   position: relative; z-index: 1;
@@ -48,44 +29,44 @@
 
 .back-pill {
   display: flex; align-items: center; gap: 6px;
-  font-size: 13px; color: #6b6775;
+  font-size: 13px; color: #98989D;
   padding: 8px 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(28,20,16,0.04);
+  border: 1px solid rgba(28,20,16,0.08);
   border-radius: 100px; cursor: pointer;
   font-family: 'Satoshi', sans-serif;
   transition: color 0.2s, background 0.2s;
 }
-.back-pill:hover { color: #f0ece6; background: rgba(255,255,255,0.07); }
+.back-pill:hover { color: #1D1D1F; background: rgba(28,20,16,0.08); }
 
 .mode-pill {
   font-size: 11px; font-weight: 600;
   letter-spacing: 1.5px; text-transform: uppercase;
-  padding: 5px 14px; border-radius: 100px;
+  padding: 5px 14px; border-radius: 6px;
 }
-.pill-orange { background: rgba(249,115,22,0.12); color: #f97316; border: 1px solid rgba(249,115,22,0.2); }
-.pill-blue   { background: rgba(59,130,246,0.12);  color: #3b82f6; border: 1px solid rgba(59,130,246,0.2); }
+.pill-orange { background: rgba(201,79,44,0.10); color: #FF6B35; border: 1px solid rgba(201,79,44,0.20); }
+.pill-blue   { background: rgba(201,79,44,0.08);  color: #515154; border: 1px solid rgba(201,79,44,0.15); }
 
 /* Header */
 .rs-header { display: flex; flex-direction: column; gap: 10px; }
 
 .eyebrow {
   font-size: 12px; letter-spacing: 3px;
-  text-transform: uppercase; color: #4a4a5a; font-weight: 500;
+  text-transform: uppercase; color: #98989D; font-weight: 500;
 }
 
 .rs-h1 {
   font-family: 'Cabinet Grotesk', sans-serif;
   font-size: clamp(34px, 5.5vw, 58px);
   font-weight: 900; letter-spacing: -1.5px;
-  line-height: 1.05; color: #f0ece6; margin: 0;
+  line-height: 1.05; color: #1D1D1F; margin: 0;
 }
 
 .rs-sub {
-  font-size: 15px; color: #6b6775;
+  font-size: 15px; color: #98989D;
   max-width: 440px; line-height: 1.6; font-weight: 300; margin: 0;
 }
-.rs-sub strong { color: #9b96a8; font-weight: 500; }
+.rs-sub strong { color: #515154; font-weight: 500; }
 
 /* Grid */
 .roles-grid { display: grid; gap: 12px; }
@@ -99,8 +80,8 @@
 
 /* Role Card */
 .role-card {
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.07);
+  background: #FFFFFF;
+  border: 1.5px solid #E8E8ED;
   border-radius: 18px; padding: 22px 18px;
   text-align: left; cursor: pointer;
   display: flex; flex-direction: column; gap: 14px;
@@ -117,22 +98,27 @@
 }
 
 .accent-orange .role-card:hover {
-  border-color: rgba(249,115,22,0.3);
+  border-color: #FF6B35;
   transform: translateY(-3px);
-  box-shadow: 0 14px 40px rgba(249,115,22,0.08);
+  box-shadow: 0 12px 36px rgba(255,107,53,0.15);
+  background: #FFF8F5;
 }
 .accent-blue .role-card:hover {
-  border-color: rgba(59,130,246,0.3);
+  border-color: #2A4D6A;
   transform: translateY(-3px);
-  box-shadow: 0 14px 40px rgba(59,130,246,0.08);
+  box-shadow: 0 12px 36px rgba(42,77,106,0.12);
+  background: #F5F8FC;
 }
 
 .rc-icon {
-  color: rgba(255,255,255,0.18);
-  transition: color 0.25s; line-height: 0;
+  color: #FF6B35;
+  background: #FFF3EE;
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.25s; line-height: 0;
 }
-.accent-orange .role-card:hover .rc-icon { color: #f97316; }
-.accent-blue   .role-card:hover .rc-icon { color: #3b82f6; }
+.accent-orange .role-card:hover .rc-icon { background: #FFE8DC; color: #E85A28; }
+.accent-blue   .role-card:hover .rc-icon { background: #EEF2F7; color: #2A4D6A; }
 
 .rc-body { display: flex; flex-direction: column; gap: 8px; }
 
@@ -141,7 +127,7 @@
 .rc-title {
   font-family: 'Cabinet Grotesk', sans-serif;
   font-size: 17px; font-weight: 800;
-  color: #f0ece6; letter-spacing: -0.3px; margin: 0;
+  color: #1D1D1F; letter-spacing: -0.3px; margin: 0;
 }
 
 .rc-badge {
@@ -149,8 +135,8 @@
   letter-spacing: 0.5px; padding: 2px 8px;
   border-radius: 100px; width: fit-content;
 }
-.login-req { background: rgba(234,179,8,0.1);  color: #eab308; }
-.direct    { background: rgba(34,197,94,0.1);   color: #22c55e; }
+.login-req { background: rgba(234,179,8,0.1);  color: #C07820; }
+.direct    { background: rgba(34,197,94,0.1);   color: #30A060; }
 
 .rc-desc {
   font-size: 12px; color: #555565;
@@ -158,8 +144,8 @@
 }
 
 .rc-arrow {
-  color: #2a2a38; margin-top: auto;
+  color: #D1D1D8; margin-top: auto;
   transition: color 0.25s, transform 0.25s;
 }
-.accent-orange .role-card:hover .rc-arrow { color: #f97316; transform: translateX(3px); }
-.accent-blue   .role-card:hover .rc-arrow { color: #3b82f6; transform: translateX(3px); }
+.accent-orange .role-card:hover .rc-arrow { color: #FF6B35; transform: translateX(3px); }
+.accent-blue   .role-card:hover .rc-arrow { color: #515154; transform: translateX(3px); }

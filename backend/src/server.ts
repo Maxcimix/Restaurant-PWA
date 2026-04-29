@@ -1,18 +1,19 @@
 // ============================================================
-// backend/src/server.ts  —  Fase 7 (actualizado)
-// NUEVO: /api/cashier → cashierRoutes (Caja Con Mesero)
+// backend/src/server.ts  —  Fase 8 (actualizado)
+// NUEVO: /api/admin → adminRoutes
 // ============================================================
 
-import express         from 'express';
-import cors            from 'cors';
+import express          from 'express';
+import cors             from 'cors';
 import { createServer } from 'http';
-import dotenv          from 'dotenv';
+import dotenv           from 'dotenv';
 
 import authRoutes    from './routes/auth';
 import menuRoutes    from './routes/menu';
 import tableRoutes   from './routes/tables';
 import orderRoutes   from './routes/orders';
-import cashierRoutes from './routes/cashier';   // ← NUEVO Fase 7
+import cashierRoutes from './routes/cashier';
+import adminRoutes   from './routes/admin';      // ← NUEVO Fase 8
 import devRoutes     from './routes/dev';
 
 import { initWebSocket } from './websocket/handlers';
@@ -30,18 +31,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// ── Rutas ────────────────────────────────────────────────────
 app.use('/api/auth',    authRoutes);
 app.use('/api/menu',    menuRoutes);
 app.use('/api/tables',  tableRoutes);
 app.use('/api/orders',  orderRoutes);
-app.use('/api/cashier', cashierRoutes);   // ← NUEVO Fase 7
+app.use('/api/cashier', cashierRoutes);
+app.use('/api/admin',   adminRoutes);      // ← NUEVO Fase 8
 
 if (process.env.NODE_ENV !== 'production') {
   app.use('/api/dev', devRoutes);
 }
 
-// Health check real — verifica conexión a BD
+// Health check con verificación real de BD
 app.get('/api/health', async (_req, res) => {
   try {
     await pool.query('SELECT 1');
@@ -56,5 +57,4 @@ initWebSocket(server);
 const PORT = parseInt(process.env.PORT ?? '3001');
 server.listen(PORT, () => {
   console.log(`[Server] Running on http://localhost:${PORT}`);
-  console.log(`[Environment] ${process.env.NODE_ENV ?? 'development'}`);
 });
