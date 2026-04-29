@@ -1,24 +1,47 @@
 // ============================================================
 // frontend/src/pages/cashier/CajaMesero.tsx
-// FIX 4: Agrega botón "Historial de pedidos" en el header.
+//
+// FLUJO ACTUALIZADO:
+//   PANEL MONITOR (izquierda):
+//     Caja ve TODAS las órdenes del mesero desde que salen a cocina.
+//     Solo lectura: En cocina → Preparando → Listo → Entregado.
+//     Muestra el estado en tiempo real vía WebSocket.
+//
+//   PANEL COBRO (derecha / pestaña):
+//     Aparecen solo las mesas en waiting_bill (mesero solicitó cuenta).
+//     Caja cobra y LIBERA la mesa al terminar. El mesero no puede liberar.
+//
+// La liberación de la mesa la hace SOLO caja al completar el pago.
 // ============================================================
 
-import { useEffect, useState, useCallback } from 'react';
-import { useNavigate }          from 'react-router-dom';
-import { useAppStore }          from '../../store/appStore';
-import { useCashierStore }      from '../../store/cashierStore';
-import { useCashierWebSocket }  from '../../hooks/useCashierWebSocket';
-import { getWaitingTables }     from '../../services/cashierService';
-import BillGenerator            from '../../components/cashier/BillGenerator';
-import PaymentMethod            from '../../components/cashier/PaymentMethod';
-import TableRelease             from '../../components/cashier/TableRelease';
-import OrderHistory             from '../../components/shared/OrderHistory';   // FIX 4
-import type { WaitingTable }    from '../../types/cashier';
-import type { PayOrderResponse } from '../../types/cashier';
+import { useState, useCallback }    from 'react';
+import { useNavigate }              from 'react-router-dom';
+import { useAppStore }              from '../../store/appStore';
+import { useCashierStore }          from '../../store/cashierStore';
+import { useCashierWebSocket }      from '../../hooks/useCashierWebSocket';
+import { getWaitingTables }         from '../../services/cashierService';
+import BillGenerator                from '../../components/cashier/BillGenerator';
+import PaymentMethod                from '../../components/cashier/PaymentMethod';
+import TableRelease                 from '../../components/cashier/TableRelease';
+import OrderHistory                 from '../../components/shared/OrderHistory';
+import type { WaitingTable }        from '../../types/cashier';
+import type { MonitorOrder }        from '../../types/cashier';
+import type { PayOrderResponse }    from '../../types/cashier';
 import '../../styles/cajamesero.css';
-import '../../styles/orderhistory.css';  // FIX 4
+import '../../styles/orderhistory.css';
 
 type FlowStep = 'none' | 'bill' | 'payment' | 'release';
+type ActivePanel = 'monitor' | 'cobro';
+
+// ── Labels y colores por estado de orden ───────────────────
+const ORDER_STATUS_LABELS: Record<string, { label: string; cls: string; icon: string }> = {
+  sent_to_kitchen:  { label: 'En cocina',    cls: 'ms-kitchen',   icon: '🍳' },
+  in_preparation:   { label: 'Preparando',   cls: 'ms-preparing', icon: '👨‍🍳' },
+  ready_for_pickup: { label: 'Listo',        cls: 'ms-ready',     icon: '✅' },
+  delivered:        { label: 'Entregado',    cls: 'ms-delivered', icon: '🛎️' },
+  waiting_bill:     { label: 'Pide cuenta',  cls: 'ms-bill',      icon: '🧾' },
+  completed:        { label: 'Completado',   cls: 'ms-done',      icon: '✔️' },
+};
 
 function serviceDuration(createdAt: string): string {
   const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60_000);
@@ -26,20 +49,67 @@ function serviceDuration(createdAt: string): string {
   return `${Math.floor(mins / 60)}h ${mins % 60}m`;
 }
 
+// ── Tarjeta del panel monitor ───────────────────────────────
+function MonitorCard({ order }: { order: MonitorOrder }) {
+  const [expanded, setExpanded] = useState(false);
+  const st = ORDER_STATUS_LABELS[order.status] ?? { label: order.status, cls: '', icon: '🔄' };
+
+  return (
+    <div className={`mc-card ${st.cls}`}>
+      <div className="mc-header" onClick={() => setExpanded((v) => !v)}>
+        <div className="mc-left">
+          <span className="mc-order-num">{order.orderNumber}</span>
+          {order.tableNumber && (
+            <span className="mc-table">Mesa {order.tableNumber}</span>
+          )}
+        </div>
+        <div className="mc-right">
+          <span className={`mc-badge ${st.cls}`}>{st.icon} {st.label}</span>
+          <span className="mc-time">{serviceDuration(order.createdAt)}</span>
+          <span className="mc-expand">{expanded ? '▲' : '▼'}</span>
+        </div>
+      </div>
+      {expanded && (
+        <div className="mc-body">
+          {order.waiterName && (
+            <p className="mc-waiter">👤 {order.waiterName}</p>
+          )}
+          {order.items.length > 0 && (
+            <ul className="mc-items">
+              {order.items.map((it, i) => (
+                <li key={i} className="mc-item">
+                  <span>{it.quantity}× {it.name}</span>
+                  {it.notes && <span className="mc-item-note">{it.notes}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mc-total">
+            Total: <strong>${parseFloat(String(order.total)).toFixed(2)}</strong>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Dashboard principal ─────────────────────────────────────
 export default function CajaMesero() {
   const navigate = useNavigate();
   const { user } = useAppStore();
   const token    = localStorage.getItem('rpwa-token');
 
   const {
+    monitorOrders,
     waitingTables, loading, error,
     setWaitingTables, setLoading, setError,
     selectTable, resetFlow,
   } = useCashierStore();
 
-  const [flowStep,    setFlowStep]    = useState<FlowStep>('none');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showHistory, setShowHistory] = useState(false);   // FIX 4
+  const [flowStep,     setFlowStep]     = useState<FlowStep>('none');
+  const [activePanel,  setActivePanel]  = useState<ActivePanel>('monitor');
+  const [searchQuery,  setSearchQuery]  = useState('');
+  const [showHistory,  setShowHistory]  = useState(false);
 
   const loadTables = useCallback(() => {
     setLoading(true);
@@ -48,8 +118,7 @@ export default function CajaMesero() {
       .catch((e: Error) => setError(e.message));
   }, [setLoading, setWaitingTables, setError]);
 
-  useEffect(() => { loadTables(); }, []); // eslint-disable-line
-
+  // WebSocket: carga inicial + suscripción a eventos
   useCashierWebSocket(token);
 
   const handleViewBill = useCallback((table: WaitingTable) => {
@@ -57,15 +126,22 @@ export default function CajaMesero() {
     setFlowStep('bill');
   }, [selectTable]);
 
-  const filteredTables = searchQuery.trim()
+  const filteredWaiting = searchQuery.trim()
     ? waitingTables.filter((t) =>
         String(t.tableNumber).includes(searchQuery) ||
         t.section?.toLowerCase().includes(searchQuery.toLowerCase())
       )
     : waitingTables;
 
+  // Órdenes del monitor excluyen las ya completadas o canceladas
+  const activeMonitor = monitorOrders.filter(
+    (o) => !['completed', 'cancelled'].includes(o.status)
+  );
+
   return (
     <div className="cajam-root">
+
+      {/* Header */}
       <header className="cajam-header">
         <div className="cajam-header-left">
           <div className="cajam-logo" aria-hidden="true">
@@ -82,10 +158,11 @@ export default function CajaMesero() {
         </div>
 
         <div className="cajam-header-right">
-          <span className="cajam-count-pill">
-            {waitingTables.length} {waitingTables.length === 1 ? 'mesa' : 'mesas'} esperando
-          </span>
-          {/* FIX 4: Botón historial */}
+          {waitingTables.length > 0 && (
+            <span className="cajam-count-pill cajam-count-urgent">
+              🧾 {waitingTables.length} {waitingTables.length === 1 ? 'cuenta' : 'cuentas'} pendiente{waitingTables.length > 1 ? 's' : ''}
+            </span>
+          )}
           <button
             type="button"
             className="history-trigger-btn"
@@ -116,63 +193,134 @@ export default function CajaMesero() {
         </div>
       )}
 
-      <div className="cajam-search-bar">
-        <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
-          <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
-          <path d="M10 10l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-        </svg>
-        <input
-          type="search"
-          className="cajam-search"
-          placeholder="Buscar por número de mesa o sección..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-        />
+      {/* Pestañas de panel */}
+      <div className="cajam-tabs">
+        <button
+          type="button"
+          className={`cajam-tab ${activePanel === 'monitor' ? 'cajam-tab--active' : ''}`}
+          onClick={() => setActivePanel('monitor')}
+        >
+          📡 Monitor de órdenes
+          {activeMonitor.length > 0 && (
+            <span className="cajam-tab-badge">{activeMonitor.length}</span>
+          )}
+        </button>
+        <button
+          type="button"
+          className={`cajam-tab ${activePanel === 'cobro' ? 'cajam-tab--active' : ''}`}
+          onClick={() => setActivePanel('cobro')}
+        >
+          🧾 Cobro de cuentas
+          {waitingTables.length > 0 && (
+            <span className="cajam-tab-badge cajam-tab-badge--urgent">{waitingTables.length}</span>
+          )}
+        </button>
       </div>
 
       <main className="cajam-body">
-        {loading ? (
-          <div className="cajam-loading">
-            <div className="cashier-spinner" />
-            <p>Cargando mesas...</p>
-          </div>
-        ) : filteredTables.length === 0 ? (
-          <div className="cajam-empty">
-            <p>{searchQuery ? 'Sin resultados' : 'No hay mesas esperando cuenta'}</p>
-            {!searchQuery && <span>Las mesas aparecen aquí cuando el mesero solicita la cuenta</span>}
-          </div>
-        ) : (
-          <div className="cajam-table">
-            <div className="cajam-table-head">
-              <span>Mesa</span>
-              <span>Sección</span>
-              <span>Mesero</span>
-              <span>Tiempo de servicio</span>
-              <span className="col-right">Total est.</span>
-              <span className="col-right">Acción</span>
-            </div>
-            {filteredTables.map((table) => (
-              <div key={table.tableId} className="cajam-table-row">
-                <span className="cajam-mesa-num"><span className="mesa-badge">Mesa {table.tableNumber}</span></span>
-                <span className="cajam-section">{table.section ?? '—'}</span>
-                <span className="cajam-waiter">{table.waiterName ?? '—'}</span>
-                <span className="cajam-duration">{serviceDuration(table.createdAt)}</span>
-                <span className="cajam-total col-right">${parseFloat(table.total as unknown as string).toFixed(2)}</span>
-                <span className="cajam-action col-right">
-                  <button type="button" className="cajam-view-btn" onClick={() => handleViewBill(table)}>
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 7c0 0 2-4 5-4s5 4 5 4-2 4-5 4-5-4-5-4z" stroke="currentColor" strokeWidth="1.2"/>
-                      <circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                    </svg>
-                    Ver cuenta
-                  </button>
-                </span>
+
+        {/* ── PANEL MONITOR ── */}
+        {activePanel === 'monitor' && (
+          <div className="cajam-monitor">
+            {activeMonitor.length === 0 ? (
+              <div className="cajam-empty">
+                <p>Sin órdenes activas del mesero</p>
+                <span>Las órdenes aparecen aquí desde que se envían a cocina</span>
               </div>
-            ))}
+            ) : (
+              <div className="cajam-monitor-grid">
+                {activeMonitor.map((order) => (
+                  <MonitorCard key={order.orderId} order={order} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── PANEL COBRO ── */}
+        {activePanel === 'cobro' && (
+          <div className="cajam-cobro">
+            <div className="cajam-search-bar">
+              <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                <circle cx="6.5" cy="6.5" r="4.5" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M10 10l3 3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              </svg>
+              <input
+                type="search"
+                className="cajam-search"
+                placeholder="Buscar por mesa o sección..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+
+            {loading ? (
+              <div className="cajam-loading">
+                <div className="cashier-spinner" />
+                <p>Cargando mesas...</p>
+              </div>
+            ) : filteredWaiting.length === 0 ? (
+              <div className="cajam-empty">
+                <p>{searchQuery ? 'Sin resultados' : 'No hay cuentas pendientes'}</p>
+                {!searchQuery && (
+                  <span>Las mesas aparecen aquí cuando el mesero solicita la cuenta</span>
+                )}
+              </div>
+            ) : (
+              <div className="cajam-table">
+                <div className="cajam-table-head">
+                  <span>Mesa</span>
+                  <span>Sección</span>
+                  <span>Mesero</span>
+                  <span>Duración</span>
+                  <span>Método</span>
+                  <span className="col-right">Total</span>
+                  <span className="col-right">Acción</span>
+                </div>
+                {filteredWaiting.map((table) => (
+                  <div key={table.tableId} className="cajam-table-row">
+                    <span className="cajam-mesa-num">
+                      <span className="mesa-badge">Mesa {table.tableNumber}</span>
+                    </span>
+                    <span className="cajam-section">{table.section ?? '—'}</span>
+                    <span className="cajam-waiter">{table.waiterName ?? '—'}</span>
+                    <span className="cajam-duration">{serviceDuration(table.createdAt)}</span>
+                    <span className="cajam-method">
+                      {table.paymentMethod ? (
+                        <span className="cajam-method-badge">
+                          {table.paymentMethod === 'efectivo'        ? 'Efectivo'      :
+                           table.paymentMethod === 'tarjeta_debito'  ? 'Débito'        :
+                           table.paymentMethod === 'tarjeta_credito' ? 'Crédito'       :
+                           table.paymentMethod === 'transferencia'   ? 'Transf.'       :
+                           table.paymentMethod}
+                        </span>
+                      ) : '—'}
+                    </span>
+                    <span className="cajam-total col-right">
+                      ${parseFloat(String(table.total)).toFixed(2)}
+                    </span>
+                    <span className="cajam-action col-right">
+                      <button
+                        type="button"
+                        className="cajam-view-btn"
+                        onClick={() => handleViewBill(table)}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M2 7c0 0 2-4 5-4s5 4 5 4-2 4-5 4-5-4-5-4z" stroke="currentColor" strokeWidth="1.2"/>
+                          <circle cx="7" cy="7" r="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                        </svg>
+                        Cobrar
+                      </button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </main>
 
+      {/* Flujo de cobro */}
       {flowStep === 'bill' && (
         <BillGenerator
           onProceedToPayment={() => setFlowStep('payment')}
@@ -193,7 +341,6 @@ export default function CajaMesero() {
         />
       )}
 
-      {/* FIX 4: Modal de historial */}
       {showHistory && (
         <OrderHistory onClose={() => setShowHistory(false)} />
       )}

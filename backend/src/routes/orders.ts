@@ -1,8 +1,10 @@
 // ============================================================
-// backend/src/routes/orders.ts  —  Fixes multi
+// backend/src/routes/orders.ts
 //
-// NUEVO: GET /api/orders/history  — historial del día (FIX 4)
-// NUEVO: GET /api/orders/metrics  — timings operacionales (FIX 5)
+// NUEVO: PATCH /api/orders/:id/request-bill
+//   El mesero lo llama cuando el cliente pide la cuenta.
+//   Registra método de pago + propina y cambia mesa a waiting_bill.
+//   A partir de ahí, caja puede cobrar.
 // ============================================================
 
 import { Router } from 'express';
@@ -12,6 +14,7 @@ import {
   updateOrderStatus,
   getActiveOrders,
   getOrderHistory,
+  requestBill,
 } from '../controllers/orderController';
 import { closeOrder }  from '../controllers/cajaController';
 import { getOrderMetrics } from '../controllers/metricsController';
@@ -30,7 +33,7 @@ router.get(
   getActiveOrders
 );
 
-// FIX 4: Historial del día — solo caja y admin
+// Historial del día — solo caja y admin
 router.get(
   '/history',
   authenticate,
@@ -38,7 +41,7 @@ router.get(
   getOrderHistory
 );
 
-// FIX 5: Métricas operacionales — solo admin y caja
+// Métricas operacionales — solo admin y caja
 router.get(
   '/metrics',
   authenticate,
@@ -57,6 +60,15 @@ router.patch(
   authenticate,
   requireRole(['caja', 'cocina', 'mesero', 'admin']),
   updateOrderStatus
+);
+
+// NUEVO: El mesero solicita la cuenta (cliente pidió pagar).
+// Registra método de pago + propina → mesa pasa a waiting_bill → caja cobra.
+router.patch(
+  '/:id/request-bill',
+  authenticate,
+  requireRole(['mesero', 'admin']),
+  requestBill
 );
 
 router.post(

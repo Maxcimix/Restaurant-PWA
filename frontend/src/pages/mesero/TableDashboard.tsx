@@ -2,17 +2,15 @@
 // frontend/src/pages/mesero/TableDashboard.tsx
 // Ruta: /mesero/dashboard
 //
-// Dashboard principal del mesero. Muestra todas las mesas
-// del restaurante con su estado actual en tiempo real.
-//
-// LAYOUT:
-//   - Header con stats rápidos (libres / ocupadas / listas)
-//   - Filtro por sección (Salón, Terraza, Privado, etc.)
-//   - Grid de tarjetas de mesa (TableCard)
-//   - Modal de DeliveryConfirm al confirmar entrega
-//
-// TIEMPO REAL: useWaiterWebSocket escucha order:status y
-// table:status para actualizar el grid sin recargar.
+// FLUJO ACTUALIZADO:
+//   1. Mesa libre → "Tomar orden"
+//   2. Mesa ocupada + orden en proceso → badge estado (En cocina / Preparando / Listo)
+//   3. Mesa ocupada + orden ready_for_pickup → "Entregar pedido"
+//   4. Mesa ocupada + orden delivered → "Pedir cuenta" (cliente solicitó pagar)
+//      → BillRequestModal (método de pago + propina) → PATCH /request-bill
+//      → mesa pasa a waiting_bill → CAJA gestiona el cobro y LIBERA la mesa
+//   5. Mesa waiting_bill → solo informativo para el mesero ("Esperando cobro")
+//      → El mesero NO puede liberar la mesa; solo CAJA puede hacerlo al cobrar
 // ============================================================
 
 import { useEffect, useState, useCallback, memo } from 'react';
@@ -20,8 +18,9 @@ import { useNavigate }         from 'react-router-dom';
 import { useAppStore }         from '../../store/appStore';
 import { useWaiterStore }      from '../../store/waiterStore';
 import { useWaiterWebSocket }  from '../../hooks/useWaiterWebSocket';
-import { getTables, updateTableStatus } from '../../services/waiterService';
+import { getTables }           from '../../services/waiterService';
 import DeliveryConfirm         from '../../components/waiter/DeliveryConfirm';
+import BillRequestModal        from '../../components/waiter/BillRequestModal';
 import OrderStatus             from '../../components/waiter/OrderStatus';
 import type { Table, TableStatus } from '../../types/table';
 import '../../styles/mesero.css';
@@ -30,29 +29,30 @@ import '../../styles/mesero.css';
 const TABLE_STATUS_CONFIG: Record<TableStatus, {
   label: string; cardClass: string; dotClass: string;
 }> = {
-  available:    { label: 'Libre',          cardClass: 'tc-available',    dotClass: 'dot-green'  },
-  occupied:     { label: 'Ocupada',        cardClass: 'tc-occupied',     dotClass: 'dot-orange' },
-  reserved:     { label: 'Reservada',      cardClass: 'tc-reserved',     dotClass: 'dot-blue'   },
-  waiting_bill: { label: 'Esperando cuenta', cardClass: 'tc-waiting',   dotClass: 'dot-yellow' },
+  available:    { label: 'Libre',             cardClass: 'tc-available', dotClass: 'dot-green'  },
+  occupied:     { label: 'Ocupada',           cardClass: 'tc-occupied',  dotClass: 'dot-orange' },
+  reserved:     { label: 'Reservada',         cardClass: 'tc-reserved',  dotClass: 'dot-blue'   },
+  waiting_bill: { label: 'Esperando cobro',   cardClass: 'tc-waiting',   dotClass: 'dot-yellow' },
 };
 
 // ── Componente tarjeta de mesa ───────────────────────────────
 interface TableCardProps {
-  table:        Table;
-  onTakeOrder:  (table: Table) => void;
-  onDeliver:    (table: Table) => void;
-  onFreeTable:  (table: Table) => void;
+  table:         Table;
+  onTakeOrder:   (table: Table) => void;
+  onDeliver:     (table: Table) => void;
+  onRequestBill: (table: Table) => void;
 }
 
 const TableCard = memo(function TableCard({
-  table, onTakeOrder, onDeliver, onFreeTable,
+  table, onTakeOrder, onDeliver, onRequestBill,
 }: TableCardProps) {
-  const cfg         = TABLE_STATUS_CONFIG[table.status];
-  const isAvailable = table.status === 'available';
-  const isOccupied  = table.status === 'occupied';
-  const isReady     = table.current_order_status === 'ready_for_pickup';
+  const cfg          = TABLE_STATUS_CONFIG[table.status];
+  const isAvailable  = table.status === 'available';
+  const isOccupied   = table.status === 'occupied';
+  const isWaiting    = table.status === 'waiting_bill';
+  const isReady      = table.current_order_status === 'ready_for_pickup';
+  const isDelivered  = table.current_order_status === 'delivered';
 
-  // Tiempo en mesa
   const elapsed = table.order_created_at
     ? Math.floor((Date.now() - new Date(table.order_created_at).getTime()) / 60_000)
     : null;
@@ -62,7 +62,7 @@ const TableCard = memo(function TableCard({
       className={`table-card ${cfg.cardClass} ${isReady ? 'tc-ready-pulse' : ''}`}
       aria-label={`Mesa ${table.number}, estado: ${cfg.label}`}
     >
-      {/* Cabecera de la tarjeta */}
+      {/* Cabecera */}
       <div className="tc-header">
         <div className="tc-header-left">
           <span className={`tc-dot ${cfg.dotClass}`} aria-hidden="true" />
@@ -71,7 +71,7 @@ const TableCard = memo(function TableCard({
         <span className="tc-status-label">{cfg.label}</span>
       </div>
 
-      {/* Info de capacidad y sección */}
+      {/* Meta */}
       <div className="tc-meta">
         <span className="tc-capacity" title="Capacidad">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
@@ -80,9 +80,7 @@ const TableCard = memo(function TableCard({
           </svg>
           {table.capacity}
         </span>
-        {table.section && (
-          <span className="tc-section">{table.section}</span>
-        )}
+        {table.section && <span className="tc-section">{table.section}</span>}
         {elapsed !== null && (
           <span className={`tc-elapsed ${elapsed > 45 ? 'tc-elapsed--warn' : ''}`}>
             {elapsed}m
@@ -90,7 +88,7 @@ const TableCard = memo(function TableCard({
         )}
       </div>
 
-      {/* Estado de la orden activa */}
+      {/* Estado de la orden */}
       {table.current_order_id && (
         <div className="tc-order-info">
           <span className="tc-order-num">{table.current_order_number ?? '—'}</span>
@@ -98,7 +96,7 @@ const TableCard = memo(function TableCard({
         </div>
       )}
 
-      {/* Mesero asignado */}
+      {/* Mesero */}
       {table.waiter_name && (
         <div className="tc-waiter">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -111,6 +109,8 @@ const TableCard = memo(function TableCard({
 
       {/* Acciones */}
       <div className="tc-actions">
+
+        {/* Mesa libre → tomar orden */}
         {isAvailable && (
           <button
             type="button"
@@ -125,6 +125,7 @@ const TableCard = memo(function TableCard({
           </button>
         )}
 
+        {/* Orden lista para entregar */}
         {isOccupied && isReady && (
           <button
             type="button"
@@ -139,7 +140,24 @@ const TableCard = memo(function TableCard({
           </button>
         )}
 
-        {isOccupied && !isReady && table.current_order_id && (
+        {/* Orden entregada → cliente puede pedir cuenta */}
+        {isOccupied && isDelivered && (
+          <button
+            type="button"
+            className="tc-btn tc-btn-bill"
+            onClick={() => onRequestBill(table)}
+            aria-label={`Solicitar cuenta mesa ${table.number}`}
+          >
+            <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+              <rect x="2" y="3" width="11" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+              <path d="M5 7h5M5 9h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            Pedir cuenta
+          </button>
+        )}
+
+        {/* Orden en proceso (cocina) → solo info */}
+        {isOccupied && !isReady && !isDelivered && table.current_order_id && (
           <span className="tc-monitoring">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.1"/>
@@ -149,15 +167,15 @@ const TableCard = memo(function TableCard({
           </span>
         )}
 
-        {table.status === 'waiting_bill' && (
-          <button
-            type="button"
-            className="tc-btn tc-btn-ghost"
-            onClick={() => onFreeTable(table)}
-            aria-label={`Liberar mesa ${table.number}`}
-          >
-            Liberar mesa
-          </button>
+        {/* Mesa en waiting_bill → esperando que CAJA cobre y libere */}
+        {isWaiting && (
+          <div className="tc-waiting-info">
+            <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+              <rect x="1.5" y="4" width="11" height="7" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M4 4V3a3 3 0 016 0v1" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+            </svg>
+            <span>Cuenta enviada — esperando cobro de caja</span>
+          </div>
         )}
       </div>
     </article>
@@ -175,14 +193,12 @@ export default function TableDashboard() {
     activeSection,
     setTables, setLoading, setError,
     setActiveSection, getSections, getFilteredTables,
-    updateTableStatus: updateLocal,
   } = useWaiterStore();
 
-  // Modal de entrega
-  const [deliverModal, setDeliverModal] = useState<Table | null>(null);
-  const [actionError,  setActionError]  = useState<string | null>(null);
+  const [deliverModal,     setDeliverModal]     = useState<Table | null>(null);
+  const [billModal,        setBillModal]         = useState<Table | null>(null);
 
-  // ── Carga inicial ─────────────────────────────────────────
+  // Carga inicial
   useEffect(() => {
     setLoading(true);
     getTables()
@@ -190,50 +206,39 @@ export default function TableDashboard() {
       .catch((e: Error) => setError(e.message));
   }, []); // eslint-disable-line
 
-  // ── WebSocket tiempo real ─────────────────────────────────
+  // WebSocket tiempo real
   useWaiterWebSocket(token);
 
-  // ── Acción: ir a tomar orden ──────────────────────────────
   const handleTakeOrder = useCallback((table: Table) => {
     navigate(`/mesero/orden/${table.id}`);
   }, [navigate]);
 
-  // ── Acción: confirmar entrega ─────────────────────────────
+  // Entrega exitosa → refrescar mesas
   const handleDeliverSuccess = useCallback(() => {
     setDeliverModal(null);
-    // Refresca mesas para sincronizar estado
     getTables().then(setTables).catch(() => {});
   }, [setTables]);
 
-  // ── Acción: liberar mesa (waiting_bill → available) ───────
-  const handleFreeTable = useCallback(async (table: Table) => {
-    setActionError(null);
-    try {
-      await updateTableStatus(table.id, 'available');
-      updateLocal(table.id, 'available', {
-        current_order_id:     null,
-        current_order_number: null,
-        current_order_status: null,
-      });
-    } catch (e: unknown) {
-      setActionError(e instanceof Error ? e.message : 'Error al liberar mesa');
-    }
-  }, [updateLocal]);
+  // Cuenta solicitada exitosamente → refrescar mesas
+  const handleBillSuccess = useCallback(() => {
+    setBillModal(null);
+    getTables().then(setTables).catch(() => {});
+  }, [setTables]);
 
-  // ── Estadísticas de cabecera ──────────────────────────────
+  // Stats
   const stats = {
-    available:    tables.filter((t) => t.status === 'available').length,
-    occupied:     tables.filter((t) => t.status === 'occupied').length,
-    waitingBill:  tables.filter((t) => t.status === 'waiting_bill').length,
-    ready:        tables.filter((t) => t.current_order_status === 'ready_for_pickup').length,
+    available:   tables.filter((t) => t.status === 'available').length,
+    occupied:    tables.filter((t) => t.status === 'occupied').length,
+    waitingBill: tables.filter((t) => t.status === 'waiting_bill').length,
+    ready:       tables.filter((t) => t.current_order_status === 'ready_for_pickup').length,
   };
 
-  const sections        = getSections();
-  const filteredTables  = getFilteredTables();
+  const sections       = getSections();
+  const filteredTables = getFilteredTables();
 
   return (
     <div className="mesero-root">
-      {/* ── Header ── */}
+      {/* Header */}
       <header className="mesero-header">
         <div className="mh-left">
           <div className="mesero-logo" aria-hidden="true">
@@ -250,7 +255,6 @@ export default function TableDashboard() {
           </div>
         </div>
 
-        {/* Stats */}
         <div className="mh-stats">
           <div className="stat-chip chip-green">
             <span>{stats.available}</span> libres
@@ -260,12 +264,12 @@ export default function TableDashboard() {
           </div>
           {stats.ready > 0 && (
             <div className="stat-chip chip-emerald">
-              <span>{stats.ready}</span> listas 🎉
+              <span>{stats.ready}</span> listas 
             </div>
           )}
           {stats.waitingBill > 0 && (
             <div className="stat-chip chip-yellow">
-              <span>{stats.waitingBill}</span> cuenta
+              <span>{stats.waitingBill}</span> en caja
             </div>
           )}
         </div>
@@ -283,15 +287,15 @@ export default function TableDashboard() {
         </button>
       </header>
 
-      {/* ── Error banner ── */}
-      {(error || actionError) && (
+      {/* Error banner */}
+      {error && (
         <div className="mesero-error" role="alert">
-          {error ?? actionError}
-          <button onClick={() => { setError(null); setActionError(null); }}>×</button>
+          {error}
+          <button onClick={() => setError(null)}>×</button>
         </div>
       )}
 
-      {/* ── Filtro por sección ── */}
+      {/* Filtro por sección */}
       {sections.length > 1 && (
         <nav className="section-tabs" aria-label="Filtrar por sección">
           <button
@@ -314,7 +318,7 @@ export default function TableDashboard() {
         </nav>
       )}
 
-      {/* ── Grid de mesas ── */}
+      {/* Grid de mesas */}
       {loading ? (
         <div className="mesero-loading" aria-busy="true">
           <div className="mesero-spinner" aria-hidden="true" />
@@ -336,13 +340,13 @@ export default function TableDashboard() {
               table={table}
               onTakeOrder={handleTakeOrder}
               onDeliver={(t) => setDeliverModal(t)}
-              onFreeTable={handleFreeTable}
+              onRequestBill={(t) => setBillModal(t)}
             />
           ))}
         </main>
       )}
 
-      {/* ── Modal de entrega ── */}
+      {/* Modal de entrega */}
       {deliverModal && deliverModal.current_order_id && (
         <DeliveryConfirm
           orderId={deliverModal.current_order_id}
@@ -350,6 +354,17 @@ export default function TableDashboard() {
           tableNumber={deliverModal.number}
           onSuccess={handleDeliverSuccess}
           onCancel={() => setDeliverModal(null)}
+        />
+      )}
+
+      {/* Modal de solicitar cuenta — BillRequestModal carga el detalle internamente */}
+      {billModal && billModal.current_order_id && (
+        <BillRequestModal
+          orderId={billModal.current_order_id}
+          orderNumber={billModal.current_order_number ?? '—'}
+          tableNumber={billModal.number}
+          onSuccess={handleBillSuccess}
+          onCancel={() => setBillModal(null)}
         />
       )}
     </div>

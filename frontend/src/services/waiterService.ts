@@ -71,3 +71,30 @@ export const markAsDelivered = (orderId: string): Promise<Order> =>
     method: 'PATCH',
     body:   JSON.stringify({ status: 'delivered' }),
   });
+/**
+ * El mesero solicita la cuenta cuando el cliente pide pagar.
+ * Envía el método de pago y la propina acordada.
+ * El backend actualiza la orden y cambia la mesa a waiting_bill.
+ * A partir de ahí, caja puede ver y cobrar la mesa.
+ */
+export const requestBill = (
+  orderId: string,
+  payload: {
+    payment_method: string;
+    tip?:           number;
+    notes?:         string;
+  }
+): Promise<{
+  orderId:       string;
+  orderNumber:   string;
+  paymentMethod: string;
+  tip:           number;
+  subtotal:      number;
+  tax:           number;
+  total:         number;
+  status:        string;
+}> =>
+  apiFetch(`/orders/${orderId}/request-bill`, {
+    method: 'PATCH',
+    body:   JSON.stringify(payload),
+  });

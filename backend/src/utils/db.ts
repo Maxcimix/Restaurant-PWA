@@ -1,21 +1,21 @@
 import { Pool } from 'pg';
 import dotenv from 'dotenv';
+import path from 'path';
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
+  host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
+  database: process.env.DB_NAME || 'restaurant_pwa',
+  user: process.env.DB_USER || 'postgres',
+  password: String(process.env.DB_PASSWORD || 'Tdea2024'),
 });
 
 pool.on('error', (err) => {
   console.error('[Database] Unexpected error:', err);
 });
 
-// Verifica conexión al iniciar
 pool.connect()
   .then((client) => {
     console.log('✅ PostgreSQL conectado');

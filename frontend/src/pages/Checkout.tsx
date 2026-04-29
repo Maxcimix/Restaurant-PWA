@@ -22,9 +22,9 @@ import '../styles/checkout.css';
 type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia';
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo',      icon: '💵' },
-  { value: 'tarjeta',       label: 'Tarjeta',        icon: '💳' },
-  { value: 'transferencia', label: 'Transferencia',  icon: '📲' },
+  { value: 'efectivo',      label: 'Efectivo',      icon: '' },
+  { value: 'tarjeta',       label: 'Tarjeta',        icon: '' },
+  { value: 'transferencia', label: 'Transferencia',  icon: '' },
 ];
 
 export default function Checkout() {

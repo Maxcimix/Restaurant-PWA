@@ -270,7 +270,7 @@ export async function payOrder(req: AuthRequest, res: Response) {
       })),
       subtotal:   parseFloat(order.subtotal),
       tax:        parseFloat(order.tax ?? '0'),
-      tip:        tipAmount,
+      tip: parseFloat(order.tip ?? '0') + tipAmount,
       total:      totalWithTip,
       amountPaid: paidAmount,
       change,
