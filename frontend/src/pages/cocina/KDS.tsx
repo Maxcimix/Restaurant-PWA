@@ -168,6 +168,20 @@ export default function KDS() {
           <span className="kds-total-label">
             {totalOrdenes} {totalOrdenes === 1 ? 'orden' : 'órdenes'}
           </span>
+          {/* Botón Bodega — acceso directo del cocinero */}
+          <button
+            type="button"
+            className="kds-bodega-btn"
+            onClick={() => navigate('/cocina/bodega')}
+            aria-label="Ir a bodega"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+              <rect x="1" y="6" width="14" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+              <path d="M4 6V4a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+              <circle cx="8" cy="10" r="1.2" fill="currentColor" opacity=".7"/>
+            </svg>
+            Bodega
+          </button>
           {/* Botón pantalla completa */}
           <button
             type="button"

@@ -90,7 +90,10 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
               <span className="oc-qty">{item.quantity}×</span>
               <span className="oc-name">{item.name}</span>
               <span className="oc-price">
-                ${(parseFloat(item.price as unknown as string) * item.quantity).toFixed(2)}
+                {/* FIX: getActiveOrders devuelve 'unit_price', getOrderById devuelve 'price' */}
+                ${(parseFloat(
+                    ((item as unknown as Record<string,unknown>).unit_price ?? item.price) as string
+                  ) * item.quantity).toFixed(2)}
               </span>
             </div>
           ))}

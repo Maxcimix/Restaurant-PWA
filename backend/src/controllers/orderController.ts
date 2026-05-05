@@ -363,7 +363,7 @@ export async function getActiveOrders(_req: Request, res: Response) {
               'id',         oi.id,
               'name',       mi.name,
               'quantity',   oi.quantity,
-              'unit_price', oi.price,
+              'price', oi.price,
               'notes',      oi.special_instructions
             )
           ) FILTER (WHERE oi.id IS NOT NULL),

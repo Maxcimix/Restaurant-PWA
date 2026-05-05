@@ -491,3 +491,20 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   .kds-col-body      { padding: 8px; }
   .op-card           { border-radius: 10px; }
 }
+
+.kds-bodega-btn {
+  display: flex; align-items: center; gap: 6px;
+  min-height: 44px; padding: 0 14px;
+  border-radius: 10px;
+  background: rgba(45, 212, 191, 0.1);
+  border: 1px solid rgba(45, 212, 191, 0.28);
+  color: #2dd4bf;
+  font-family: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+}
+.kds-bodega-btn:hover {
+  background: rgba(45, 212, 191, 0.18);
+  border-color: rgba(45, 212, 191, 0.5);
+  color: #14b8a6;
+}
