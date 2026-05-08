@@ -266,7 +266,6 @@ export default function KDS() {
                   nuevas.map((o) => (
                     <OrderPrep key={o.id} order={o}
                       onAccept={handleAccept} onReady={handleReady}
-                      onItemPrepared={activeWithdrawal ? handleItemPrepared : undefined}
                     />
                   ))
                 )}
@@ -287,7 +286,6 @@ export default function KDS() {
                   enPrep.map((o) => (
                     <OrderPrep key={o.id} order={o}
                       onAccept={handleAccept} onReady={handleReady}
-                      onItemPrepared={activeWithdrawal ? handleItemPrepared : undefined}
                     />
                   ))
                 )}

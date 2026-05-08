@@ -1,108 +1,70 @@
+version: '3.9'
+
 services:
-  # PostgreSQL Database
+
+  # ── Base de datos PostgreSQL ─────────────────────────────
   postgres:
     image: postgres:16-alpine
-    container_name: restaurant_postgres
+    container_name: restaurant_db
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: ${DB_NAME:-restaurant_pwa}
-      POSTGRES_USER: ${DB_USER:-postgres}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres123}
-    ports:
-      - "5432:5432"
+      POSTGRES_DB:       restaurant_pwa
+      POSTGRES_USER:     postgres
+      POSTGRES_PASSWORD: Tdea2024
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/schema.sql
-      - ./backend/database/seeds.sql:/docker-entrypoint-initdb.d/seeds.sql
-    networks:
-      - restaurant_network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-
-  # Redis Cache
-  redis:
-    image: redis:7-alpine
-    container_name: restaurant_redis
+      - ./backend/database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      
+      - ./backend/database/004_inventory.sql:/docker-entrypoint-initdb.d/03_inventory.sql
+      - ./backend/database/005_shift_f10.sql:/docker-entrypoint-initdb.d/04_shift.sql
     ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    networks:
-      - restaurant_network
+      - "5432:5432"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d restaurant_pwa"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # Backend (Express + Node)
+  # ── Backend Node.js ──────────────────────────────────────
   backend:
     build:
       context: ./backend
-      dockerfile: Dockerfile.dev
+      dockerfile: Dockerfile
     container_name: restaurant_backend
+    restart: unless-stopped
     environment:
-      DB_HOST: postgres
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-restaurant_pwa}
-      DB_USER: ${DB_USER:-postgres}
-      DB_PASSWORD: ${DB_PASSWORD:-postgres123}
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      PORT: 3001
-      NODE_ENV: development
-      JWT_SECRET: ${JWT_SECRET:-your-super-secret-jwt-key-change-this}
-      # FIX AUDITORÍA: CORS_ORIGIN no se pasaba al contenedor.
-      # Sin esto, el backend usa el fallback 'http://localhost:5173'
-      # que solo funciona si accedes desde la misma máquina.
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:5173}
+    
+      DB_HOST:        postgres
+      DB_PORT:        5432
+      DB_NAME:        restaurant_pwa
+      DB_USER:        postgres
+      DB_PASSWORD:    Tdea2024
+      PORT:           3001
+      NODE_ENV:       production
+      JWT_SECRET:     cambiar-por-una-clave-segura-en-produccion
+      JWT_EXPIRY:     24h
+      CORS_ORIGIN: http://localhost
+      OPERATION_MODE: ambos
+      CLOUDINARY_CLOUD_NAME: dyzmbsh3k
+      CLOUDINARY_API_KEY: "789198526526413"
+      CLOUDINARY_API_SECRET: "-RRZD8-k87KfeTQwoxEPv9Mm2w0"
     ports:
       - "3001:3001"
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./backend/src:/app/src
-      - ./backend/dist:/app/dist
-      - /app/node_modules
-    networks:
-      - restaurant_network
-    command: npm run dev
 
-  # Frontend (React + Vite)
+  # ── Frontend React + Nginx ───────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: restaurant_frontend
+    restart: unless-stopped
     ports:
-      - "5173:5173"
+      - "80:80"
     depends_on:
       - backend
-    volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - /app/node_modules
-    networks:
-      - restaurant_network
-    environment:
-      - VITE_API_URL=http://localhost:3001/api
-      # FIX AUDITORÍA: VITE_WS_URL faltaba — los hooks useWebSocket,
-      # useCajaWebSocket, useKitchenSocket y useWaiterWebSocket
-      # usaban el fallback 'ws://localhost:3001' que solo funciona
-      # desde la misma máquina. En red o con dominio propio, falla.
-      - VITE_WS_URL=ws://localhost:3001
 
 volumes:
   postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-
-networks:
-  restaurant_network:
-    driver: bridge

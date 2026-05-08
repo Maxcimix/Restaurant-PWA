@@ -3,7 +3,7 @@
 //
 // Todas las rutas requieren: authenticate + requireRole(['admin'])
 // ============================================================
-
+import { upload, uploadImage } from '../controllers/uploadController';
 import { Router } from 'express';
 import {
   getStats, getReports,
@@ -45,5 +45,8 @@ router.post('/users/:id/reset-password', ...isAdmin, resetUserPassword);
 // Configuración
 router.get('/settings',  ...isAdmin, getSettings);
 router.put('/settings',  ...isAdmin, saveSettings);
+
+// Subida de imágenes
+router.post('/upload', ...isAdmin, upload.single('image'), uploadImage);
 
 export default router;

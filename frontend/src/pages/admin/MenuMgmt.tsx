@@ -1,15 +1,6 @@
 import { formatCOP } from '../../utils/constants';
 // ============================================================
 // frontend/src/pages/admin/MenuMgmt.tsx  →  /admin/menu
-//
-// Propósito: Gestión completa del menú. CRUD de categorías e ítems.
-//   Toggle de disponibilidad, precios, tiempos de preparación.
-//
-// Flujo de datos:
-//   1. Carga categorías → GET /api/admin/menu/categories
-//   2. Al seleccionar categoría → GET /api/admin/menu/items?category=:id
-//   3. Formularios inline para crear/editar
-//   4. Toggle switch para is_available e is_out_of_stock
 // ============================================================
 import { UtensilsCrossed } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -21,10 +12,10 @@ import {
   createMenuItem, updateMenuItem, deleteMenuItem,
   toggleItemAvailability,
 } from '../../services/adminService';
-import type { AdminCategory, AdminMenuItem, CategoryForm, MenuItemForm } from '../../types/admin';
+import type { AdminMenuItem, CategoryForm, MenuItemForm } from '../../types/admin';
 
 const EMPTY_CAT: CategoryForm = { name: '', description: '', icon: '', position: 1, is_active: true };
-const EMPTY_ITEM: MenuItemForm = { category_id: '', name: '', description: '', price: 0, preparation_time: 10, is_available: true, is_out_of_stock: false };
+const EMPTY_ITEM: MenuItemForm = { category_id: '', name: '', description: '', price: 0, preparation_time: 10, is_available: true, is_out_of_stock: false, image_url: '' };
 
 export default function MenuMgmt() {
   const {
@@ -34,15 +25,16 @@ export default function MenuMgmt() {
     updateItemInList, removeItemFromList, setError,
   } = useAdminStore();
 
-  const [tab, setTab]             = useState<'categories' | 'items'>('categories');
-  const [catForm, setCatForm]     = useState<CategoryForm | null>(null);
-  const [itemForm, setItemForm]   = useState<MenuItemForm | null>(null);
-  const [editCatId, setEditCatId] = useState<string | null>(null);
+  const [tab, setTab]               = useState<'categories' | 'items'>('categories');
+  const [catForm, setCatForm]       = useState<CategoryForm | null>(null);
+  const [itemForm, setItemForm]     = useState<MenuItemForm | null>(null);
+  const [editCatId, setEditCatId]   = useState<string | null>(null);
   const [editItemId, setEditItemId] = useState<string | null>(null);
-  const [saving, setSaving]       = useState(false);
-  const [confirm, setConfirm]     = useState<{ type: 'cat' | 'item'; id: string; name: string } | null>(null);
+  const [saving, setSaving]         = useState(false);
+  const [uploading, setUploading]   = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [confirm, setConfirm]       = useState<{ type: 'cat' | 'item'; id: string; name: string } | null>(null);
 
-  // Carga categorías
   useEffect(() => {
     setMenuLoading(true);
     getAdminCategories()
@@ -50,7 +42,6 @@ export default function MenuMgmt() {
       .catch((e: Error) => setError(e.message));
   }, []); // eslint-disable-line
 
-  // Carga items al cambiar categoría activa
   useEffect(() => {
     if (tab !== 'items') return;
     setMenuLoading(true);
@@ -101,7 +92,7 @@ export default function MenuMgmt() {
         const created = await createMenuItem(itemForm);
         setItems([...items, created]);
       }
-      setItemForm(null); setEditItemId(null);
+      setItemForm(null); setEditItemId(null); setImagePreview(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
     } finally { setSaving(false); }
@@ -125,6 +116,27 @@ export default function MenuMgmt() {
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al actualizar disponibilidad');
     }
+  }
+
+  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('image', file);
+      const token = localStorage.getItem('rpwa-token');
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token ?? ''}` },
+        body: formData,
+      });
+      const data = await res.json() as { url: string };
+      setItemForm((prev) => prev ? { ...prev, image_url: data.url } : prev);
+      setImagePreview(data.url);
+    } catch {
+      setError('Error al subir la imagen');
+    } finally { setUploading(false); }
   }
 
   return (
@@ -162,7 +174,6 @@ export default function MenuMgmt() {
               </button>
             </div>
 
-            {/* Formulario inline */}
             {catForm && (
               <div className="admin-form-card">
                 <h3 className="admin-form-title">{editCatId ? 'Editar categoría' : 'Nueva categoría'}</h3>
@@ -174,7 +185,7 @@ export default function MenuMgmt() {
                       placeholder="Ej: Entradas" maxLength={100}/>
                   </div>
                   <div className="admin-field">
-                    <label>Ícono (emoji)</label>
+                    <label>Ícono</label>
                     <input className="admin-input" value={catForm.icon}
                       onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })}
                       placeholder="" maxLength={10}/>
@@ -210,7 +221,6 @@ export default function MenuMgmt() {
               </div>
             )}
 
-            {/* Lista */}
             {menuLoading ? <div className="admin-loading"><div className="admin-spinner"/></div> : (
               <div className="admin-list">
                 {categories.map((cat) => (
@@ -222,7 +232,7 @@ export default function MenuMgmt() {
                         <p className="alr-sub">{cat.items_count} ítems · pos. {cat.position}</p>
                       </div>
                     </div>
-                    <div className="alr-meta">{cat.is_active ? ' Activa' : '⏸ Inactiva'}</div>
+                    <div className="alr-meta">{cat.is_active ? 'Activa' : 'Inactiva'}</div>
                     <div className="alr-actions">
                       <button className="admin-btn-sm" onClick={() => {
                         setCatForm({ name: cat.name, description: cat.description ?? '', icon: cat.icon ?? '', position: cat.position, is_active: cat.is_active });
@@ -244,7 +254,6 @@ export default function MenuMgmt() {
         {tab === 'items' && (
           <div className="admin-section">
             <div className="admin-section-header">
-              {/* Filtro por categoría */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                 <h2 className="admin-section-title">Ítems</h2>
                 <select
@@ -263,6 +272,7 @@ export default function MenuMgmt() {
                 onClick={() => {
                   setItemForm({ ...EMPTY_ITEM, category_id: activeCategory ?? '' });
                   setEditItemId(null);
+                  setImagePreview(null);
                 }}
               >
                 + Nuevo ítem
@@ -304,6 +314,42 @@ export default function MenuMgmt() {
                       onChange={(e) => setItemForm({ ...itemForm, description: e.target.value })}
                       placeholder="Descripción del ítem" maxLength={300}/>
                   </div>
+
+                  {/* ── Imagen ── */}
+                  <div className="admin-field admin-field--full">
+                    <label>Imagen del producto</label>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      {(imagePreview || itemForm.image_url) && (
+                        <img
+                          src={imagePreview || itemForm.image_url}
+                          alt="preview"
+                          style={{ width: 80, height: 80, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--a-border)' }}
+                        />
+                      )}
+                      <label style={{ cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: 'none' }}
+                          onChange={handleImageUpload}
+                          disabled={uploading}
+                        />
+                        <span className="admin-btn-ghost" style={{ pointerEvents: 'none', opacity: uploading ? 0.6 : 1 }}>
+                          {uploading ? 'Subiendo...' : imagePreview || itemForm.image_url ? 'Cambiar imagen' : 'Seleccionar imagen'}
+                        </span>
+                      </label>
+                      {(imagePreview || itemForm.image_url) && (
+                        <button
+                          type="button"
+                          className="admin-btn-ghost"
+                          onClick={() => { setImagePreview(null); setItemForm({ ...itemForm, image_url: '' }); }}
+                        >
+                          Quitar imagen
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   <div className="admin-field admin-field--toggle">
                     <label>Disponible</label>
                     <button type="button"
@@ -318,9 +364,9 @@ export default function MenuMgmt() {
                   </div>
                 </div>
                 <div className="admin-form-actions">
-                  <button className="admin-btn-ghost" onClick={() => { setItemForm(null); setEditItemId(null); }}>Cancelar</button>
+                  <button className="admin-btn-ghost" onClick={() => { setItemForm(null); setEditItemId(null); setImagePreview(null); }}>Cancelar</button>
                   <button className="admin-btn-primary" onClick={handleSaveItem}
-                    disabled={!itemForm.name || !itemForm.category_id || itemForm.price <= 0 || saving}>
+                    disabled={!itemForm.name || !itemForm.category_id || itemForm.price <= 0 || saving || uploading}>
                     {saving ? 'Guardando...' : 'Guardar'}
                   </button>
                 </div>
@@ -365,8 +411,10 @@ export default function MenuMgmt() {
                           preparation_time: item.preparation_time ?? 0,
                           is_available:     item.is_available,
                           is_out_of_stock:  item.is_out_of_stock,
+                          image_url:        item.image_url ?? '',
                         });
                         setEditItemId(item.id);
+                        setImagePreview(item.image_url ?? null);
                       }}>Editar</button>
                       <button className="admin-btn-sm admin-btn-danger" onClick={() =>
                         setConfirm({ type: 'item', id: item.id, name: item.name })
@@ -380,7 +428,7 @@ export default function MenuMgmt() {
           </div>
         )}
 
-        {/* Modal de confirmación de borrado */}
+        {/* Modal confirmación */}
         {confirm && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setConfirm(null)}>
             <div className="admin-confirm-modal">

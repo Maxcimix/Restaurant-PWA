@@ -325,14 +325,13 @@ export async function getAdminItems(req: Request, res: Response) {
 
 export async function createMenuItem(req: Request, res: Response) {
   try {
-    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock } = req.body;
-    if (!name || !category_id || !price) return res.status(400).json({ message: 'Faltan campos requeridos' });
+const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url } = req.body;
 
-    const result = await pool.query(
-      `INSERT INTO menu_items (category_id, name, description, price, preparation_time, is_available, is_out_of_stock)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available ?? true, is_out_of_stock ?? false]
-    );
+const result = await pool.query(
+  `INSERT INTO menu_items (category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url)
+   VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+  [category_id, name, description ?? null, price, preparation_time ?? 10, is_available ?? true, is_out_of_stock ?? false, image_url ?? null]
+);
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
     return res.status(201).json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: 0 });
   } catch (err) {
@@ -344,15 +343,16 @@ export async function createMenuItem(req: Request, res: Response) {
 export async function updateMenuItem(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock } = req.body;
+    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url } = req.body;
 
-    const result = await pool.query(
-      `UPDATE menu_items
-       SET category_id=$1, name=$2, description=$3, price=$4,
-           preparation_time=$5, is_available=$6, is_out_of_stock=$7, updated_at=NOW()
-       WHERE id=$8 RETURNING *`,
-      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available, is_out_of_stock, id]
-    );
+const result = await pool.query(
+  `UPDATE menu_items
+   SET category_id=$1, name=$2, description=$3, price=$4,
+       preparation_time=$5, is_available=$6, is_out_of_stock=$7,
+       image_url=$8, updated_at=NOW()
+   WHERE id=$9 RETURNING *`,
+  [category_id, name, description ?? null, price, preparation_time ?? 10, is_available, is_out_of_stock, image_url ?? null, id]
+);
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
 
     const catR   = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);

@@ -141,6 +141,7 @@ export interface MenuItemForm {
   preparation_time: number;
   is_available:     boolean;
   is_out_of_stock:  boolean;
+  image_url?: string;
 }
 
 // ── Gestión de usuarios ──────────────────────────────────────

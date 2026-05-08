@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  plugins: [react()],
   server: {
     host: '0.0.0.0',
     port: 5173,
@@ -9,13 +10,10 @@ export default defineConfig({
       usePolling: true,
     },
     proxy: {
-      // Redirige /api/* → http://backend:3001/api/*
-      // En local usa localhost:3001, en Docker usa el nombre del servicio
       '/api': {
         target: 'http://backend:3001',
         changeOrigin: true,
       },
-      // WebSocket
       '/ws': {
         target: 'ws://backend:3001',
         ws: true,
@@ -23,5 +21,9 @@ export default defineConfig({
       },
     },
   },
-  plugins: [react()],
+  // En producción el frontend es servido por Nginx
+  // que hace proxy hacia backend:3001
+  build: {
+    outDir: 'dist',
+  },
 })
