@@ -379,14 +379,18 @@ export default function TableDashboard() {
       )}
 
       {/* Modal de detalle del pedido */}
-      {detailModal && detailModal.current_order_id && (
-        <OrderDetailModal
-          orderId={detailModal.current_order_id}
-          orderNumber={detailModal.current_order_number ?? '—'}
-          tableNumber={detailModal.number}
-          onClose={() => setDetailModal(null)}
-        />
-      )}
+{detailModal && detailModal.current_order_id && (
+  <OrderDetailModal
+    orderId={detailModal.current_order_id}
+    orderNumber={detailModal.current_order_number ?? '—'}
+    tableNumber={detailModal.number}
+    onClose={() => setDetailModal(null)}
+    onAllDelivered={() => {
+      setDetailModal(null);
+      getTables().then(setTables).catch(() => {});
+    }}
+  />
+)}
 
       {/* Modal de solicitar cuenta — BillRequestModal carga el detalle internamente */}
       {billModal && billModal.current_order_id && (

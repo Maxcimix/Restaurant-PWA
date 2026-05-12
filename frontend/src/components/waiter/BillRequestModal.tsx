@@ -18,6 +18,7 @@ import { useState, useEffect } from 'react';
 import { requestBill, getOrderDetail } from '../../services/waiterService';
 import { ApiError }                    from '../../services/api';
 import type { Order }                  from '../../types/order';
+import { useAppStore } from '../../store/appStore';
 
 type PaymentMethod = 'efectivo' | 'tarjeta_debito' | 'tarjeta_credito' | 'transferencia';
 
@@ -39,11 +40,13 @@ interface Props {
 export default function BillRequestModal({
   orderId, orderNumber, tableNumber, onSuccess, onCancel,
 }: Props) {
+  const { brand } = useAppStore();
+const configuredTip = brand.tipSuggestion;
   const [order,      setOrder]      = useState<Order | null>(null);
   const [loadingOrder, setLoadingOrder] = useState(true);
   const [method,     setMethod]     = useState<PaymentMethod>('efectivo');
   const [tipMode,    setTipMode]    = useState<'percent' | 'amount'>('percent');
-  const [tipPercent, setTipPercent] = useState<number>(10);
+  const [tipPercent, setTipPercent] = useState<number>(0);
   const [tipAmount,  setTipAmount]  = useState<string>('');
   const [submitting, setSubmitting] = useState(false);
   const [error,      setError]      = useState<string | null>(null);
@@ -135,7 +138,7 @@ export default function BillRequestModal({
                 <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
               </div>
               <div className="brm-sum-row">
-                <span>IVA (8%)</span><span>${tax.toFixed(2)}</span>
+                <span>IVA ({brand.taxRate}%)</span><span>${tax.toFixed(2)}</span>
               </div>
             </div>
 
@@ -179,15 +182,14 @@ export default function BillRequestModal({
 
               {tipMode === 'percent' ? (
                 <div className="brm-tip-percents">
-                  {[0, 5, 10, 15, 20].map((p) => (
+                  {[0, configuredTip].map((p) => (
                     <button
                       key={p}
                       type="button"
                       className={`brm-tip-chip ${tipPercent === p ? 'brm-tip-chip--active' : ''}`}
                       onClick={() => setTipPercent(p)}
                     >
-                      {p === 0 ? 'Sin propina' : `${p}%`}
-                    </button>
+{p === 0 ? 'Sin propina' : `${p}% (sugerida)`}                    </button>
                   ))}
                 </div>
               ) : (

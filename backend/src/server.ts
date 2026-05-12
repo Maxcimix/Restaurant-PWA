@@ -15,6 +15,7 @@ import orderRoutes     from './routes/orders';
 import cashierRoutes   from './routes/cashier';
 import adminRoutes     from './routes/admin';
 import configRoutes    from './routes/config';
+import superuserRoutes from './routes/superuser';
 import inventoryRoutes from './routes/inventory';   // ← NUEVO Fase 9
 import devRoutes       from './routes/dev';
 
@@ -40,6 +41,7 @@ app.use('/api/orders',    orderRoutes);
 app.use('/api/cashier',   cashierRoutes);
 app.use('/api/admin',     adminRoutes);
 app.use('/api/config',    configRoutes);
+app.use('/api/superuser', superuserRoutes);
 app.use('/api/inventory', inventoryRoutes);   // ← NUEVO Fase 9
 
 if (process.env.NODE_ENV !== 'production') {

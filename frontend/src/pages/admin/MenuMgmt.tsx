@@ -2,7 +2,6 @@ import { formatCOP } from '../../utils/constants';
 // ============================================================
 // frontend/src/pages/admin/MenuMgmt.tsx  →  /admin/menu
 // ============================================================
-import { UtensilsCrossed } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { useAdminStore } from '../../store/adminStore';
@@ -13,10 +12,70 @@ import {
   toggleItemAvailability,
 } from '../../services/adminService';
 import type { AdminMenuItem, CategoryForm, MenuItemForm } from '../../types/admin';
-
-const EMPTY_CAT: CategoryForm = { name: '', description: '', icon: '', position: 1, is_active: true };
+import { UtensilsCrossed, Coffee, Wine, Beer, Sandwich, Salad, Soup, IceCream, Flame, Star, Heart, Package, Leaf, Fish, Beef, Cookie, Cake, Milk, Apple, Cherry } from 'lucide-react';
+const EMPTY_CAT: CategoryForm = { name: '', description: '', icon: '', position: 1, is_active: true, requires_preparation: true };
 const EMPTY_ITEM: MenuItemForm = { category_id: '', name: '', description: '', price: 0, preparation_time: 10, is_available: true, is_out_of_stock: false, image_url: '' };
+const CATEGORY_ICONS: { name: string; icon: React.ReactNode }[] = [
+  { name: 'UtensilsCrossed', icon: <UtensilsCrossed size={20}/> },
+  { name: 'Coffee',          icon: <Coffee size={20}/> },
+  { name: 'Wine',            icon: <Wine size={20}/> },
+  { name: 'Beer',            icon: <Beer size={20}/> },
+  { name: 'Sandwich',        icon: <Sandwich size={20}/> },
+  { name: 'Salad',           icon: <Salad size={20}/> },
+  { name: 'Soup',            icon: <Soup size={20}/> },
+  { name: 'IceCream',        icon: <IceCream size={20}/> },
+  { name: 'Flame',           icon: <Flame size={20}/> },
+  { name: 'Star',            icon: <Star size={20}/> },
+  { name: 'Heart',           icon: <Heart size={20}/> },
+  { name: 'Package',         icon: <Package size={20}/> },
+  { name: 'Leaf',            icon: <Leaf size={20}/> },
+  { name: 'Fish',            icon: <Fish size={20}/> },
+  { name: 'Beef',            icon: <Beef size={20}/> },
+  { name: 'Cookie',          icon: <Cookie size={20}/> },
+  { name: 'Cake',            icon: <Cake size={20}/> },
+  { name: 'Milk',            icon: <Milk size={20}/> },
+  { name: 'Apple',           icon: <Apple size={20}/> },
+  { name: 'Cherry',          icon: <Cherry size={20}/> },
+];
 
+function IconPicker({ value, onChange }: { value: string; onChange: (name: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const selected = CATEGORY_ICONS.find((i) => i.name === value);
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="admin-btn-ghost"
+        style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {selected ? selected.icon : <Package size={20}/>}
+        <span style={{ fontSize: '12px' }}>{value || 'Seleccionar'}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: 'absolute', top: '110%', left: 0, zIndex: 100,
+          background: 'var(--a-surface)', border: '1px solid var(--a-border)',
+          borderRadius: '10px', padding: '12px',
+          display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px',
+          boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+        }}>
+          {CATEGORY_ICONS.map((item) => (
+            <button key={item.name} type="button"
+              onClick={() => { onChange(item.name); setOpen(false); }}
+              title={item.name}
+              style={{
+                padding: '8px', borderRadius: '6px', border: 'none', cursor: 'pointer',
+                background: value === item.name ? 'var(--a-indigo-soft)' : 'transparent',
+                color: value === item.name ? 'var(--a-indigo)' : 'var(--a-text)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              {item.icon}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 export default function MenuMgmt() {
   const {
     categories, items, menuLoading, activeCategory,
@@ -185,11 +244,12 @@ export default function MenuMgmt() {
                       placeholder="Ej: Entradas" maxLength={100}/>
                   </div>
                   <div className="admin-field">
-                    <label>Ícono</label>
-                    <input className="admin-input" value={catForm.icon}
-                      onChange={(e) => setCatForm({ ...catForm, icon: e.target.value })}
-                      placeholder="" maxLength={10}/>
-                  </div>
+  <label>Ícono</label>
+  <IconPicker
+    value={catForm.icon}
+    onChange={(name) => setCatForm({ ...catForm, icon: name })}
+  />
+</div>
                   <div className="admin-field">
                     <label>Posición</label>
                     <input className="admin-input" type="number" min={1} value={catForm.position}
@@ -202,13 +262,23 @@ export default function MenuMgmt() {
                       placeholder="Descripción opcional" maxLength={200}/>
                   </div>
                   <div className="admin-field admin-field--toggle">
-                    <label>Activa</label>
-                    <button
-                      type="button"
-                      className={`admin-toggle ${catForm.is_active ? 'admin-toggle--on' : ''}`}
-                      onClick={() => setCatForm({ ...catForm, is_active: !catForm.is_active })}
-                    />
-                  </div>
+  <label>Activa</label>
+  <button
+    type="button"
+    className={`admin-toggle ${catForm.is_active ? 'admin-toggle--on' : ''}`}
+    onClick={() => setCatForm({ ...catForm, is_active: !catForm.is_active })}
+  />
+</div>
+<div className="admin-field admin-field--toggle">
+  <label title="Si se desactiva, los ítems NO pasarán por el KDS">
+    Requiere preparación 
+  </label>
+  <button
+    type="button"
+    className={`admin-toggle ${catForm.requires_preparation ? 'admin-toggle--on' : ''}`}
+    onClick={() => setCatForm({ ...catForm, requires_preparation: !catForm.requires_preparation })}
+  />
+</div>
                 </div>
                 <div className="admin-form-actions">
                   <button className="admin-btn-ghost" onClick={() => { setCatForm(null); setEditCatId(null); }}>
@@ -226,7 +296,9 @@ export default function MenuMgmt() {
                 {categories.map((cat) => (
                   <div key={cat.id} className={`admin-list-row ${!cat.is_active ? 'row-inactive' : ''}`}>
                     <div className="alr-main">
-                      <span className="alr-icon">{cat.icon || ''}</span>
+                      <span className="alr-icon">
+  {CATEGORY_ICONS.find((i) => i.name === cat.icon)?.icon ?? <Package size={16}/>}
+</span>
                       <div>
                         <p className="alr-name">{cat.name}</p>
                         <p className="alr-sub">{cat.items_count} ítems · pos. {cat.position}</p>
@@ -235,7 +307,7 @@ export default function MenuMgmt() {
                     <div className="alr-meta">{cat.is_active ? 'Activa' : 'Inactiva'}</div>
                     <div className="alr-actions">
                       <button className="admin-btn-sm" onClick={() => {
-                        setCatForm({ name: cat.name, description: cat.description ?? '', icon: cat.icon ?? '', position: cat.position, is_active: cat.is_active });
+                        setCatForm({ name: cat.name, description: cat.description ?? '', icon: cat.icon ?? '', position: cat.position, is_active: cat.is_active, requires_preparation: cat.requires_preparation ?? true });
                         setEditCatId(cat.id);
                       }}>Editar</button>
                       <button className="admin-btn-sm admin-btn-danger" onClick={() =>

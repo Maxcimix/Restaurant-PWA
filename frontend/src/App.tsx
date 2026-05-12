@@ -50,6 +50,10 @@ import BodegaView         from './pages/cocina/BodegaView';
 
 import MenuCliente from './pages/MenuCliente';
 
+import SuperuserLayout  from './components/admin/SuperuserLayout';
+import BrandSettings    from './pages/superuser/BrandSettings';
+import OperationMode    from './pages/superuser/OperationMode';
+import GeneralSettings  from './pages/superuser/GeneralSettings';
 const Unauthorized = () => (
   <div style={{
     minHeight: '100svh', background: '#f0ece6', color: '#080810',
@@ -65,6 +69,12 @@ export default function App() {
   const { loadConfig, operationMode } = useAppStore();
 
   useEffect(() => { loadConfig(); }, [loadConfig]);
+
+useEffect(() => {
+  const handler = () => { useAppStore.getState().reloadConfig(); };
+  window.addEventListener('rpwa:config-update', handler);
+  return () => window.removeEventListener('rpwa:config-update', handler);
+}, []);
 
   const hasAutoservicio = operationMode === 'autoservicio' || operationMode === 'ambos';
   const hasMesero       = operationMode === 'mesero'       || operationMode === 'ambos';
@@ -131,6 +141,13 @@ export default function App() {
           element={<ProtectedRoute allowedRoles={['admin']}><RecipeEditor /></ProtectedRoute>} />
 
 <Route path="/mesero/menu-cliente" element={<MenuCliente />} />
+<Route path="/superuser"
+  element={<ProtectedRoute allowedRoles={['superusuario']}><SuperuserLayout /></ProtectedRoute>}>
+  <Route index          element={<Navigate to="/superuser/brand" replace />} />
+  <Route path="brand"     element={<BrandSettings />} />
+  <Route path="operation" element={<OperationMode />} />
+  <Route path="general"   element={<GeneralSettings />} />
+</Route>
         <Route path="/unauthorized" element={<Unauthorized />} />
         <Route path="*"             element={<Navigate to="/" replace />} />
       </Routes>

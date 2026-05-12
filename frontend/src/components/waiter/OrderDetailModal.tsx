@@ -7,15 +7,17 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { getOrderDetail }       from '../../services/waiterService';
+import { getOrderDetail, deliverItem } from '../../services/waiterService';
 import { formatCOP }            from '../../utils/constants';
 import type { Order }           from '../../types/order';
-import { FileText } from 'lucide-react';
+import { FileText, CheckCircle, Package } from 'lucide-react';
+
 interface Props {
   orderId:     string;
   orderNumber: string;
   tableNumber: number;
   onClose:     () => void;
+  onAllDelivered?: () => void;
 }
 
 const STATUS_LABEL: Record<string, { label: string; color: string }> = {
@@ -31,23 +33,49 @@ const STATUS_LABEL: Record<string, { label: string; color: string }> = {
   cancelled:            { label: 'Cancelado',       color: '#ef4444' },
 };
 
-export default function OrderDetailModal({ orderId, orderNumber, tableNumber, onClose }: Props) {
-  const [order,   setOrder]   = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error,   setError]   = useState<string | null>(null);
+export default function OrderDetailModal({ orderId, orderNumber, tableNumber, onClose, onAllDelivered }: Props) {
+  const [order,        setOrder]        = useState<Order | null>(null);
+  const [loading,      setLoading]      = useState(true);
+  const [error,        setError]        = useState<string | null>(null);
+  const [delivering,   setDelivering]   = useState<string | null>(null);
+  const [delivered,    setDelivered]    = useState<Set<string>>(new Set());
 
   useEffect(() => {
     setLoading(true);
     getOrderDetail(orderId)
-      .then(setOrder)
+      .then((o) => {
+        setOrder(o);
+        // Pre-marcar ítems ya entregados
+        const pre = new Set<string>();
+        o.items?.forEach((item: any) => {
+          if (item.delivered_at) pre.add(item.id);
+        });
+        setDelivered(pre);
+      })
       .catch((e: Error) => setError(e.message))
       .finally(() => setLoading(false));
   }, [orderId]);
 
+  const handleDeliver = async (itemId: string) => {
+    setDelivering(itemId);
+    try {
+      const res = await deliverItem(orderId, itemId);
+      setDelivered((prev) => new Set([...prev, itemId]));
+      if (res.allDelivered) {
+        onAllDelivered?.();
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error al entregar ítem';
+      setError(msg.includes('estado') ? 'Este ítem solo se puede entregar cuando la orden esté lista' : msg);
+    } finally {
+      setDelivering(null);
+    }
+  };
+
   const statusInfo = order ? (STATUS_LABEL[order.status] ?? { label: order.status, color: '#6b7280' }) : null;
 
   return (
-    <div className="odm-overlay" role="dialog" aria-modal="true" aria-label={`Detalle orden ${orderNumber}`}>
+    <div className="odm-overlay" role="dialog" aria-modal="true">
       <div className="odm-panel">
 
         {/* Cabecera */}
@@ -57,7 +85,8 @@ export default function OrderDetailModal({ orderId, orderNumber, tableNumber, on
             <h2 className="odm-title">{orderNumber}</h2>
           </div>
           {statusInfo && (
-            <span className="odm-status-chip" style={{ background: `${statusInfo.color}18`, color: statusInfo.color, borderColor: `${statusInfo.color}30` }}>
+            <span className="odm-status-chip"
+              style={{ background: `${statusInfo.color}18`, color: statusInfo.color, borderColor: `${statusInfo.color}30` }}>
               {statusInfo.label}
             </span>
           )}
@@ -72,69 +101,86 @@ export default function OrderDetailModal({ orderId, orderNumber, tableNumber, on
         <div className="odm-body">
           {loading && (
             <div className="odm-loading">
-              <div className="odm-spinner" />
+              <div className="odm-spinner"/>
               <span>Cargando pedido…</span>
             </div>
           )}
 
           {error && (
             <div className="odm-error">
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <circle cx="10" cy="10" r="8.5" stroke="currentColor" strokeWidth="1.4"/>
-                <path d="M10 6v5M10 13v1" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/>
-              </svg>
               <span>{error}</span>
             </div>
           )}
 
           {order && !loading && (
             <>
-              {/* Items del pedido */}
+              {/* Items */}
               <div className="odm-section">
-                <h3 className="odm-section-title">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="1" y="3" width="12" height="9" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M4 7h6M4 9.5h4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                  </svg>
-                  Artículos pedidos
-                </h3>
-
+                <h3 className="odm-section-title">Artículos pedidos</h3>
                 {order.items && order.items.length > 0 ? (
                   <ul className="odm-items-list">
-                    {order.items.map((item, idx) => (
-                      <li key={item.id ?? idx} className="odm-item">
-                        <div className="odm-item-main">
-                          <span className="odm-item-qty">{item.quantity}×</span>
-                          <div className="odm-item-info">
-                            <span className="odm-item-name">{item.name}</span>
-                            {item.special_instructions && (
-  <span className="odm-item-note">
-    <FileText size={13}/> {item.special_instructions}
-  </span>
-)}
-                            
+                    {order.items.map((item: any, idx: number) => {
+                      const isDelivered = delivered.has(item.id);
+                      const isSkip      = item.skip_kitchen;
+                      return (
+                        <li key={item.id ?? idx} className="odm-item"
+                          style={{ opacity: isDelivered ? 0.5 : 1 }}>
+                          <div className="odm-item-main">
+                            <span className="odm-item-qty">{item.quantity}×</span>
+                            <div className="odm-item-info">
+                              <span className="odm-item-name">{item.name}</span>
+                              {isSkip && !isDelivered && (
+                                <span style={{
+                                  fontSize: '11px', marginTop: '2px',
+                                  color: '#f97316', display: 'flex',
+                                  alignItems: 'center', gap: '4px',
+                                }}>
+                                  <Package size={11}/> Alista tú
+                                </span>
+                              )}
+                              {item.special_instructions && (
+                                <span className="odm-item-note">
+                                  <FileText size={13}/> {item.special_instructions}
+                                </span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                        <span className="odm-item-price">
-                          {formatCOP(parseFloat(String(item.price)) * item.quantity)}
-                        </span>
-                      </li>
-                    ))}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span className="odm-item-price">
+                              {formatCOP(parseFloat(String(item.price)) * item.quantity)}
+                            </span>
+                            {!isDelivered ? (
+                              <button
+                                type="button"
+                                onClick={() => handleDeliver(item.id)}
+                                disabled={delivering === item.id}
+                                style={{
+                                  padding: '4px 10px', fontSize: '12px',
+                                  background: 'var(--a-indigo)',
+                                  color: '#fff', border: 'none',
+                                  borderRadius: '6px', cursor: 'pointer',
+                                  opacity: delivering === item.id ? 0.6 : 1,
+                                  whiteSpace: 'nowrap',
+                                }}>
+                                {delivering === item.id ? '...' : 'Entregar'}
+                              </button>
+                            ) : (
+                              <CheckCircle size={18} color="#10b981"/>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
                 ) : (
-                  <p className="odm-empty-items">Sin artículos registrados</p>
+                  <p className="odm-empty-items">Sin artículos</p>
                 )}
               </div>
 
-              {/* Notas de la orden */}
+              {/* Notas */}
               {order.notes && (
                 <div className="odm-section">
-                  <h3 className="odm-section-title">
-                    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                      <path d="M2 3h10M2 6h8M2 9h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                    </svg>
-                    Notas
-                  </h3>
+                  <h3 className="odm-section-title">Notas</h3>
                   <p className="odm-notes">{order.notes}</p>
                 </div>
               )}
@@ -151,37 +197,17 @@ export default function OrderDetailModal({ orderId, orderNumber, tableNumber, on
                     <span>{formatCOP(parseFloat(String(order.tax)))}</span>
                   </div>
                 )}
-                {parseFloat(String(order.tip ?? 0)) > 0 && (
-                  <div className="odm-total-row">
-                    <span>Propina</span>
-                    <span>{formatCOP(parseFloat(String(order.tip)))}</span>
-                  </div>
-                )}
                 <div className="odm-total-row odm-total-final">
                   <span>Total</span>
                   <span>{formatCOP(parseFloat(String(order.total ?? 0)))}</span>
                 </div>
               </div>
-
-              {/* Método de pago si ya se definió */}
-              {order.payment_method && (
-                <div className="odm-payment">
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                    <rect x="1" y="3.5" width="12" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M1 6.5h12" stroke="currentColor" strokeWidth="1.2"/>
-                  </svg>
-                  <span>{order.payment_method}</span>
-                </div>
-              )}
             </>
           )}
         </div>
 
-        {/* Footer */}
         <div className="odm-footer">
-          <button type="button" className="odm-btn-close" onClick={onClose}>
-            Cerrar
-          </button>
+          <button type="button" className="odm-btn-close" onClick={onClose}>Cerrar</button>
         </div>
       </div>
     </div>
