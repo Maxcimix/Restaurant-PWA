@@ -16,6 +16,7 @@ import {
   getActiveOrders,
   getOrderHistory,
   requestBill,
+  deliverOrderItem,
 } from '../controllers/orderController';
 import { closeOrder }        from '../controllers/cajaController';
 import { getOrderMetrics }   from '../controllers/metricsController';
@@ -59,6 +60,12 @@ router.get(
   getOrderMetrics
 );
 
+router.patch(
+  '/:id/items/:itemId/deliver',
+  authenticate,
+  requireRole(['mesero', 'admin']),
+  deliverOrderItem
+);
 // ── Ruta pública: crear orden ────────────────────────────────
 router.post('/', createOrder);
 

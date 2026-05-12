@@ -30,7 +30,7 @@ import { useEffect, useState } from 'react';
 import { useCashierStore }     from '../../store/cashierStore';
 import { generateBill }        from '../../services/cashierService';
 import { ApiError }            from '../../services/api';
-
+import { useAppStore } from '../../store/appStore';
 interface Props {
   onProceedToPayment: () => void;
   onClose:            () => void;
@@ -40,7 +40,7 @@ export default function BillGenerator({ onProceedToPayment, onClose }: Props) {
   const { selectedTable, activeBill, setActiveBill, setError } = useCashierStore();
   const [loading, setLoading] = useState(!activeBill);
   const [localError, setLocalError] = useState<string | null>(null);
-
+  const { brand } = useAppStore();
   // Cargar la cuenta si aún no está en el store
   useEffect(() => {
     if (!selectedTable || activeBill) return;
@@ -159,7 +159,7 @@ export default function BillGenerator({ onProceedToPayment, onClose }: Props) {
                   <span>${activeBill.subtotal.toFixed(2)}</span>
                 </div>
                 <div className="bill-total-row bill-tax-row">
-                  <span>IVA (8%)</span>
+                   <span>IVA ({brand.taxRate}%)</span>
                   <span>${activeBill.tax.toFixed(2)}</span>
                 </div>
                 <div className="bill-divider" />

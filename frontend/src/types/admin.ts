@@ -98,15 +98,17 @@ export interface WaiterStat {
 
 // ── Gestión de menú ─────────────────────────────────────────
 export interface AdminCategory {
-  id:          string;
-  name:        string;
-  description: string | null;
-  icon:        string | null;
-  image_url:   string | null;
-  position:    number;
-  is_active:   boolean;
-  items_count: number;
-  created_at:  string;
+  id:                   string;
+  name:                 string;
+  description:          string | null;
+  icon:                 string | null;
+  image_url:            string | null;
+  position:             number;
+  is_active:            boolean;
+  skip_kitchen:         boolean;
+  requires_preparation: boolean;
+  items_count:          number;
+  created_at:           string;
 }
 
 export interface AdminMenuItem {
@@ -126,11 +128,12 @@ export interface AdminMenuItem {
 }
 
 export interface CategoryForm {
-  name:        string;
-  description: string;
-  icon:        string;
-  position:    number;
-  is_active:   boolean;
+  name:                 string;
+  description:          string;
+  icon:                 string;
+  position:             number;
+  is_active:            boolean;
+  requires_preparation: boolean;
 }
 
 export interface MenuItemForm {

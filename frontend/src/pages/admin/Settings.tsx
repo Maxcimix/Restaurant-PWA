@@ -11,7 +11,7 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { getSettings, saveSettings } from '../../services/adminService';
 import type { RestaurantSettings } from '../../types/admin';
-
+import { useAppStore } from '../../store/appStore';
 const CURRENCIES = ['USD', 'COP', 'MXN', 'EUR', 'PEN', 'ARS', 'CLP'];
 const TIMEZONES  = ['America/Bogota','America/Mexico_City','America/Lima','America/Santiago','America/Buenos_Aires','America/New_York','America/Sao_Paulo'];
 
@@ -45,6 +45,7 @@ export default function Settings() {
     setError(null);
     try {
       const saved = await saveSettings(settings);
+      useAppStore.getState().reloadConfig();
       setSettings(saved);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);

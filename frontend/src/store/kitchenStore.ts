@@ -80,7 +80,10 @@ function toKitchenOrder(order: Order): KitchenOrder {
 }
 
 function recalcCompleted(order: KitchenOrder): KitchenOrder {
-  const total = order.items?.length ?? 0;
+  const kitchenItems = (order.items ?? []).filter(
+    (i) => !(i as unknown as Record<string, unknown>).skip_kitchen
+  );
+  const total = kitchenItems.length;
   const done  = order.completedItemIds.size;
   return {
     ...order,

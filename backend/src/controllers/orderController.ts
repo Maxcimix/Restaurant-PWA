@@ -170,14 +170,16 @@ export async function createOrder(req: Request, res: Response) {
     // Obtener items CON nombres ANTES del broadcast para incluirlos en el payload.
     // Antes este query estaba después del broadcast, por lo que order:new llegaba
     // al panel monitor de caja sin items y los cards aparecían vacíos.
-    const itemsResult = await pool.query(
-      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
-              oi.special_instructions, oi.status, mi.name
-       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
-       WHERE oi.order_id = $1`,
-      [order.id]
-    );
-
+const itemsResult = await pool.query(
+  `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+          oi.special_instructions, oi.status, oi.delivered_at,
+          mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+   FROM order_items oi 
+   JOIN menu_items mi ON oi.menu_item_id = mi.id
+   LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE oi.order_id = $1`,
+  [order.id]
+);
     // Broadcast order:new con items incluidos para que el monitor de caja
     // y la cocina tengan la información de platos desde el primer momento.
     broadcast({
@@ -241,10 +243,13 @@ export async function getOrderById(req: Request, res: Response) {
     if (!orderResult.rows[0]) {
       return res.status(404).json({ message: 'Orden no encontrada' });
     }
-    const itemsResult = await pool.query(
+const itemsResult = await pool.query(
       `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
-              oi.special_instructions, oi.status, mi.name
-       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
        WHERE oi.order_id = $1`,
       [id]
     );
@@ -359,21 +364,24 @@ export async function getActiveOrders(_req: Request, res: Response) {
         t.number AS table_number,
         COALESCE(
           json_agg(
-            json_build_object(
-              'id',         oi.id,
-              'name',       mi.name,
-              'quantity',   oi.quantity,
-              'price', oi.price,
-              'special_instructions', oi.special_instructions
-            )
+          json_build_object(
+  'id',                   oi.id,
+  'name',                 mi.name,
+  'quantity',             oi.quantity,
+  'price',                oi.price,
+  'special_instructions', oi.special_instructions,
+  'skip_kitchen',         COALESCE(mc.skip_kitchen, false),
+  'delivered_at',         oi.delivered_at
+)
           ) FILTER (WHERE oi.id IS NOT NULL),
           '[]'
         ) AS items
       FROM orders o
       LEFT JOIN tables t       ON o.table_id = t.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
-      LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status NOT IN ('completed', 'cancelled')
+      LEFT JOIN menu_items mi       ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc  ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
       GROUP BY o.id, t.number
       ORDER BY o.created_at ASC
     `);
@@ -590,5 +598,77 @@ export async function requestBill(req: Request, res: Response) {
     return res.status(500).json({ message: 'Error al solicitar la cuenta' });
   } finally {
     client.release();
+  }
+}
+// ── PATCH /api/orders/:id/items/:itemId/deliver ──────────────
+export async function deliverOrderItem(req: Request, res: Response) {
+ const { id, itemId } = req.params;
+try {
+  // Verificar que la orden está en un estado que permite entrega
+  const orderCheck = await pool.query(
+    `SELECT status FROM orders WHERE id = $1`,
+    [id]
+  );
+  if (!orderCheck.rows[0]) {
+    return res.status(404).json({ message: 'Orden no encontrada' });
+  }
+  // Verificar si el ítem es skip_kitchen
+const itemCheck = await pool.query(
+  `SELECT COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+   FROM order_items oi
+   JOIN menu_items mi ON oi.menu_item_id = mi.id
+   LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+   WHERE oi.id = $1`,
+  [itemId]
+);
+const isSkipKitchen = itemCheck.rows[0]?.skip_kitchen ?? false;
+const allowedStatuses = isSkipKitchen
+  ? ['sent_to_kitchen', 'in_preparation', 'ready_for_pickup']
+  : ['ready_for_pickup'];
+  if (!allowedStatuses.includes(orderCheck.rows[0].status)) {
+    return res.status(400).json({ message: `No se puede entregar en estado: ${orderCheck.rows[0].status}` });
+  }
+  // Marcar ítem como entregado
+    // Marcar ítem como entregado
+    const itemResult = await pool.query(
+      `UPDATE order_items 
+       SET delivered_at = NOW()
+       WHERE id = $1 AND order_id = $2
+       RETURNING *`,
+      [itemId, id]
+    );
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Ítem no encontrado' });
+    }
+
+    // Verificar si todos los ítems están entregados
+    const pending = await pool.query(
+      `SELECT COUNT(*) FROM order_items 
+       WHERE order_id = $1 AND delivered_at IS NULL`,
+      [id]
+    );
+    const allDelivered = parseInt(pending.rows[0].count) === 0;
+
+    // Si todos entregados → orden a 'delivered'
+    if (allDelivered) {
+      await pool.query(
+        `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+      broadcast({ type: 'ORDER_DELIVERED', payload: { orderId: id } });
+    }
+
+    broadcast({ 
+      type: 'ITEM_DELIVERED', 
+      payload: { orderId: id, itemId, allDelivered } 
+    });
+
+    return res.json({ 
+      item: itemResult.rows[0], 
+      allDelivered 
+    });
+  } catch (err) {
+    console.error('[orders/items/deliver]', err);
+    return res.status(500).json({ message: 'Error al entregar ítem' });
   }
 }

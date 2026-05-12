@@ -35,7 +35,7 @@ import '../../styles/takeorder.css';
 export default function TakeOrder() {
   const { tableId }  = useParams<{ tableId: string }>();
   const navigate     = useNavigate();
-  const { user }     = useAppStore();
+  const { user, brand }     = useAppStore();
 
   const {
     tables, setTables,
@@ -128,7 +128,7 @@ export default function TakeOrder() {
 
   const cartTotal     = getCartTotal();
   const cartItemCount = getCartItemCount();
-  const tax           = cartTotal * 0.08;
+  const tax           = cartTotal * (brand.taxRate / 100);
 
   return (
     <div className="takeorder-root">
@@ -378,7 +378,7 @@ export default function TakeOrder() {
                 <span>{formatCOP(cartTotal)}</span>
               </div>
               <div className="to-total-row to-total-tax">
-                <span>IVA (8%)</span>
+                <span><span>IVA ({brand.taxRate}%)</span></span>
                 <span>{formatCOP(tax)}</span>
               </div>
               <div className="to-total-divider" />

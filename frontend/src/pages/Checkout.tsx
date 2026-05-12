@@ -13,6 +13,7 @@ import type { FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useCartStore }  from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
+import { useAppStore }  from '../store/appStore';
 import { createOrder }   from '../services/orderService';
 import { ApiError }      from '../services/api';
 import type { CreateOrderPayload, Order } from '../types/order';
@@ -34,7 +35,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
   const subtotal = parseFloat(order.subtotal as unknown as string);
   const tax      = parseFloat(order.tax      as unknown as string ?? '0');
   const total    = parseFloat(order.total    as unknown as string);
-
+  const { brand } = useAppStore();
   return (
     <div className="checkout-root">
       <div className="checkout-bg" />
@@ -84,7 +85,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
                 <span>{formatCOP(subtotal)}</span>
               </div>
               <div className="oc-total-row oc-total-tax">
-                <span>Impuesto (8%)</span>
+                <span>Impuesto ({brand.taxRate}%)</span>
                 <span>{formatCOP(tax)}</span>
               </div>
               <div className="oc-total-divider"/>
@@ -138,7 +139,7 @@ export default function Checkout() {
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
   const [confirmedOrder, setConfirmedOrder] = useState<Order | null>(null);
-
+  const { brand } = useAppStore();
   // Carrito vacío → volver al menú
   if (items.length === 0 && !confirmedOrder) {
     return <Navigate to="/autoservicio/menu" replace />;
@@ -156,7 +157,7 @@ export default function Checkout() {
   }
 
   const subtotal = getTotal();
-  const tax      = subtotal * 0.08;
+  const tax      = subtotal * (brand.taxRate / 100);
   const total    = subtotal + tax;
 
   async function handleConfirm(e: FormEvent<HTMLFormElement>) {
@@ -272,7 +273,7 @@ export default function Checkout() {
           {/* Totales */}
           <section className="checkout-totals">
             <div className="total-row"><span>Subtotal</span><span>{formatCOP(subtotal)}</span></div>
-            <div className="total-row total-row--tax"><span>Impuesto (8%)</span><span>{formatCOP(tax)}</span></div>
+            <div className="total-row total-row--tax"><span>Impuesto ({brand.taxRate}%)</span><span>{formatCOP(tax)}</span></div>
             <div className="total-divider"/>
             <div className="total-row total-row--final"><span>Total estimado</span><span>{formatCOP(total)}</span></div>
             <p className="total-note">* El total final lo confirma caja</p>
