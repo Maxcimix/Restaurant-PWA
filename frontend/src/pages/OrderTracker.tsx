@@ -76,9 +76,16 @@ export default function OrderTracker() {
   useEffect(() => {
     if (!id) return;
     setCheckingModify(true);
+    console.log('[v0] Checking if order can be modified, id:', id);
     canModifyOrder(id)
-      .then((result) => setCanModify(result.canModify))
-      .catch(() => setCanModify(false))
+      .then((result) => {
+        console.log('[v0] canModifyOrder result:', result);
+        setCanModify(result.canModify);
+      })
+      .catch((err) => {
+        console.log('[v0] canModifyOrder error:', err);
+        setCanModify(false);
+      })
       .finally(() => setCheckingModify(false));
   }, [id, order?.status]);
 
@@ -212,6 +219,7 @@ export default function OrderTracker() {
       <div className="tracker-items-card">
         <div className="tracker-items-header">
           <h3 className="tracker-items-title">Detalle del pedido</h3>
+          {console.log('[v0] Render - checkingModify:', checkingModify, 'canModify:', canModify, 'status:', order.status)}
           {!checkingModify && canModify && (
             <button 
               className="tracker-modify-btn"
