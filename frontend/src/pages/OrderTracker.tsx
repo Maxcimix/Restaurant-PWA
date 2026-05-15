@@ -3,16 +3,18 @@ import { formatCOP } from '../utils/constants';
 // frontend/src/pages/OrderTracker.tsx  →  /autoservicio/tracker/:id
 // FIX: import CSS en lowercase para compatibilidad Linux/Docker
 // FIX: price de items viene como string de BD → parseFloat
+// NUEVO: Botón para modificar pedido antes de enviar a cocina
 // ============================================================
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useOrderStore }   from '../store/orderStore';
-import { getOrderById }    from '../services/orderService';
+import { getOrderById, canModifyOrder }    from '../services/orderService';
 import { useWebSocket }    from '../hooks/useWebSocket';
+import { useCartStore }    from '../store/cartStore';
 import type { Order, OrderStatus, WsOrderReadyEvent } from '../types/order';
 import '../styles/ordertracker.css'; // ← lowercase
-import { PartyPopper } from 'lucide-react';
+import { PartyPopper, Pencil } from 'lucide-react';
 const STEPS: { status: OrderStatus; label: string; sub: string; icon: React.ReactNode }[] = [
   {
     status: 'pending_payment', label: 'Recibido', sub: 'Tu pedido fue registrado correctamente',
@@ -59,11 +61,33 @@ export default function OrderTracker() {
   const { id }   = useParams<{ id: string }>();
   const navigate = useNavigate();
   const activeOrder    = useOrderStore((s) => s.activeOrder);
-const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
+  const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
+  const startModifying = useOrderStore((s) => s.startModifying);
+  const { clearCart, addItem } = useCartStore();
+  
   const [order,      setOrder]      = useState<Order | null>(activeOrder);
   const [loading,    setLoading]    = useState(!activeOrder);
   const [error,      setError]      = useState<string | null>(null);
   const [readyAlert, setReadyAlert] = useState(false);
+  const [canModify,  setCanModify]  = useState(false);
+  const [checkingModify, setCheckingModify] = useState(true);
+
+  // Verificar si la orden puede ser modificada
+  useEffect(() => {
+    if (!id) return;
+    setCheckingModify(true);
+    console.log('[v0] Checking if order can be modified, id:', id);
+    canModifyOrder(id)
+      .then((result) => {
+        console.log('[v0] canModifyOrder result:', result);
+        setCanModify(result.canModify);
+      })
+      .catch((err) => {
+        console.log('[v0] canModifyOrder error:', err);
+        setCanModify(false);
+      })
+      .finally(() => setCheckingModify(false));
+  }, [id, order?.status]);
 
   useEffect(() => {
     if (!id) return;
@@ -89,6 +113,37 @@ const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
       setTimeout(() => setReadyAlert(false), 6000);
     },
   });
+
+  // Handler para modificar la orden
+  const handleModifyOrder = async () => {
+    if (!order || !order.items) return;
+    
+    // Limpiar carrito actual
+    clearCart();
+    
+    // Cargar items de la orden al carrito
+    for (const item of order.items) {
+      // Necesitamos crear un objeto MenuItem compatible
+      const menuItem = {
+        id: item.menu_item_id,
+        name: item.name,
+        price: parseFloat(item.price as unknown as string),
+        description: '',
+        category_id: '',
+        image_url: null,
+        is_available: true,
+        is_out_of_stock: false,
+        preparation_time: null,
+      };
+      addItem(menuItem, item.quantity, item.special_instructions || '');
+    }
+    
+    // Marcar que estamos modificando
+    startModifying();
+    
+    // Navegar al menú para modificar
+    navigate('/autoservicio/menu');
+  };
 
   if (loading) return (
     <div className="tracker-loading">
@@ -162,7 +217,20 @@ const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
       </div>
 
       <div className="tracker-items-card">
-        <h3 className="tracker-items-title">Detalle del pedido</h3>
+        <div className="tracker-items-header">
+          <h3 className="tracker-items-title">Detalle del pedido</h3>
+          {console.log('[v0] Render - checkingModify:', checkingModify, 'canModify:', canModify, 'status:', order.status)}
+          {!checkingModify && canModify && (
+            <button 
+              className="tracker-modify-btn"
+              onClick={handleModifyOrder}
+              title="Modificar pedido"
+            >
+              <Pencil size={16} />
+              Modificar
+            </button>
+          )}
+        </div>
         {order.items?.length ? (
           <ul className="tracker-items-list">
             {order.items.map((item) => (
@@ -179,6 +247,11 @@ const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
           <span>Total</span>
           <span>{formatCOP(parseFloat(order.total as unknown as string))}</span>
         </div>
+        {canModify && (
+          <p className="tracker-modify-hint">
+            Puedes modificar tu pedido antes de que sea enviado a cocina
+          </p>
+        )}
       </div>
 
       {isCompleted && (

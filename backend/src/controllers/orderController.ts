@@ -672,3 +672,193 @@ const allowedStatuses = isSkipKitchen
     return res.status(500).json({ message: 'Error al entregar ítem' });
   }
 }
+
+// ── PATCH /api/orders/:id/modify ─────────────────────────────
+// Permite al cliente modificar su orden ANTES de que se envíe a cocina.
+// Estados permitidos: pending_payment, payment_confirmed
+// El cliente puede agregar nuevos items, cambiar cantidades o eliminar items.
+export async function modifyOrder(req: Request, res: Response) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { items } = req.body as {
+      items: Array<{
+        menu_item_id: string;
+        quantity: number;
+        special_instructions?: string;
+      }>;
+    };
+
+    if (!items || items.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'La orden debe tener al menos un item' });
+    }
+
+    // Verificar que la orden existe y está en un estado modificable
+    const orderResult = await client.query(
+      `SELECT id, order_number, status, source, table_id FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (!orderResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Solo se puede modificar si está pendiente de pago o pago confirmado (antes de cocina)
+    const modifiableStatuses = ['pending_payment', 'payment_confirmed', 'pending_validation'];
+    if (!modifiableStatuses.includes(order.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        message: `No se puede modificar la orden en estado: ${order.status}. Solo se permite antes de enviar a cocina.` 
+      });
+    }
+
+    // Verificar items y obtener precios reales
+    const itemIds = items.map((i) => i.menu_item_id);
+    const menuResult = await client.query(
+      `SELECT id, name, price, is_available, is_out_of_stock
+       FROM menu_items WHERE id = ANY($1::uuid[])`,
+      [itemIds]
+    );
+    const menuMap = new Map(menuResult.rows.map((r) => [r.id, r]));
+
+    for (const item of items) {
+      const mi = menuMap.get(item.menu_item_id);
+      if (!mi) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Item "${item.menu_item_id}" no existe` });
+      }
+      if (!mi.is_available || mi.is_out_of_stock) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `"${mi.name}" no está disponible` });
+      }
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Cantidad inválida para "${mi.name}"` });
+      }
+    }
+
+    // Eliminar items actuales de la orden
+    await client.query(`DELETE FROM order_items WHERE order_id = $1`, [id]);
+
+    // Calcular nuevos totales
+    let subtotal = 0;
+    for (const item of items) {
+      subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
+    }
+    const tax = parseFloat((subtotal * 0.08).toFixed(2));
+    const total = parseFloat((subtotal + tax).toFixed(2));
+
+    // Actualizar totales de la orden
+    await client.query(
+      `UPDATE orders 
+       SET subtotal = $1, tax = $2, total = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [subtotal.toFixed(2), tax.toFixed(2), total.toFixed(2), id]
+    );
+
+    // Insertar nuevos items
+    for (const item of items) {
+      const mi = menuMap.get(item.menu_item_id)!;
+      await client.query(
+        `INSERT INTO order_items
+           (order_id, menu_item_id, quantity, price, special_instructions, status)
+         VALUES ($1,$2,$3,$4,$5,'pending')`,
+        [id, item.menu_item_id, item.quantity, mi.price, item.special_instructions ?? null]
+      );
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs (action, resource_type, resource_id)
+       VALUES ('order_modified','order',$1)`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+
+    // Obtener la orden actualizada con items
+    const updatedOrder = await pool.query(
+      `SELECT id, order_number, table_id, subtotal, tax, discount, tip,
+              total, status, payment_method, payment_status, source, notes,
+              created_at, validated_at, sent_to_kitchen_at, ready_at,
+              delivered_at, completed_at
+       FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    const itemsResult = await pool.query(
+      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+       WHERE oi.order_id = $1`,
+      [id]
+    );
+
+    // Broadcast para actualizar en tiempo real
+    broadcast({
+      type: 'order:modified',
+      payload: {
+        orderId: id,
+        orderNumber: order.order_number,
+        subtotal: parseFloat(subtotal.toFixed(2)),
+        tax,
+        total,
+        items: itemsResult.rows.map((i: { name: string; quantity: number; special_instructions: string | null }) => ({
+          name: i.name,
+          quantity: i.quantity,
+          special_instructions: i.special_instructions,
+        })),
+      },
+    });
+
+    return res.json({ ...updatedOrder.rows[0], items: itemsResult.rows });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[orders/modify]', err);
+    return res.status(500).json({ message: 'Error al modificar la orden' });
+  } finally {
+    client.release();
+  }
+}
+
+// ── GET /api/orders/:id/can-modify ───────────────────────────
+// Verifica si una orden puede ser modificada
+export async function canModifyOrder(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    console.log('[v0] canModifyOrder called with id:', id);
+    
+    const result = await pool.query(
+      `SELECT status FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    console.log('[v0] canModifyOrder query result:', result.rows);
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const modifiableStatuses = ['pending_payment', 'payment_confirmed', 'pending_validation'];
+    const canModify = modifiableStatuses.includes(result.rows[0].status);
+
+    console.log('[v0] canModifyOrder - status:', result.rows[0].status, 'canModify:', canModify);
+
+    return res.json({ 
+      canModify, 
+      status: result.rows[0].status,
+      reason: canModify ? null : 'La orden ya fue enviada a cocina y no puede modificarse'
+    });
+  } catch (err) {
+    console.error('[orders/canModify]', err);
+    return res.status(500).json({ message: 'Error al verificar estado de la orden' });
+  }
+}

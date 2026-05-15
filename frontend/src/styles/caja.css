@@ -411,12 +411,30 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .pp-change strong { font-weight: 700; }
 
+/* Hint para TAB */
+.pp-hint {
+  font-size: 11px; color: #98989D; font-style: italic;
+  padding-left: 2px;
+}
+
 /* Acciones de modal */
 .pp-actions {
   display: flex; gap: 10px;
   padding: 16px 22px 20px;
   border-top: 1px solid rgba(28,20,16,0.08);
 }
+
+/* Botones invertidos para flujo TAB -> TAB -> Enter */
+.pp-actions-reversed {
+  flex-direction: row-reverse;
+}
+.pp-actions-reversed .pp-btn-confirm {
+  flex: 2;
+}
+.pp-actions-reversed .pp-btn-cancel {
+  flex: 1;
+}
+
 .pp-btn-cancel {
   flex: 1; padding: 12px;
   background: rgba(28,20,16,0.05);

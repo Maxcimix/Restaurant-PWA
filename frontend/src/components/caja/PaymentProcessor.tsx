@@ -4,9 +4,10 @@
 // Modal que confirma el método de pago y valida la orden.
 // Calcula cambio para pagos en efectivo.
 // Al confirmar → PATCH /api/orders/:id/status → sent_to_kitchen
+// UX: TAB en input vacío autocompleta el total, botones invertidos
 // ============================================================
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { OrderWithMeta } from '../../types/caja';
 import { Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 
@@ -23,15 +24,34 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
   const montoParsed    = parseFloat(monto) || 0;
   const cambio         = montoParsed > total ? montoParsed - total : 0;
   const esEfectivo     = order.payment_method === 'efectivo';
+  const inputRef       = useRef<HTMLInputElement>(null);
+  const confirmBtnRef  = useRef<HTMLButtonElement>(null);
 
   const canConfirm = !esEfectivo || montoParsed >= total;
+
+  // Auto-focus en el input de monto al abrir
+  useEffect(() => {
+    if (esEfectivo && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [esEfectivo]);
+
+  // Handler para TAB: si el input está vacío, autocompleta con el total
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Tab' && !monto) {
+      e.preventDefault();
+      setMonto(total.toFixed(2));
+      // Después de setear el monto, mover foco al botón confirmar
+      setTimeout(() => confirmBtnRef.current?.focus(), 0);
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onCancel()}>
       <div className="pp-modal">
         <div className="pp-header">
           <h2 className="pp-title">Procesar pago</h2>
-          <button className="pp-close" onClick={onCancel}>
+          <button className="pp-close" onClick={onCancel} tabIndex={-1}>
             <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
               <path d="M3 3l12 12M15 3L3 15" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
@@ -68,6 +88,7 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
             <div className="pp-input-wrap">
               <span className="pp-currency">$</span>
               <input
+                ref={inputRef}
                 id="pp-monto"
                 type="number"
                 min={total}
@@ -76,9 +97,11 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
                 placeholder={total.toFixed(2)}
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
-                autoFocus
+                onKeyDown={handleKeyDown}
+                tabIndex={1}
               />
             </div>
+            <p className="pp-hint">Presiona TAB para autocompletar el monto</p>
             {cambio > 0 && (
               <div className="pp-change">
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -90,14 +113,14 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
           </div>
         )}
 
-        <div className="pp-actions">
-          <button className="pp-btn-cancel" onClick={onCancel} disabled={loading}>
-            Cancelar
-          </button>
+        {/* Botones invertidos: Confirmar primero para flujo TAB->TAB->Enter */}
+        <div className="pp-actions pp-actions-reversed">
           <button
+            ref={confirmBtnRef}
             className="pp-btn-confirm"
             onClick={() => onConfirm(order.id)}
             disabled={loading || !canConfirm}
+            tabIndex={2}
           >
             {loading ? <span className="btn-spinner" /> : (
               <>
@@ -107,6 +130,14 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
                 Confirmar y enviar a cocina
               </>
             )}
+          </button>
+          <button 
+            className="pp-btn-cancel" 
+            onClick={onCancel} 
+            disabled={loading}
+            tabIndex={3}
+          >
+            Cancelar
           </button>
         </div>
       </div>
