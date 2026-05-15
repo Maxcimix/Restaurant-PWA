@@ -243,3 +243,17 @@
   cursor: pointer; transition: color 0.2s, border-color 0.2s;
 }
 .oc-new-btn:hover { color: #1D1D1F; border-color: rgba(28,20,16,0.25); }
+
+/* ── Banner de modificación de orden ── */
+.checkout-modify-banner {
+  display: flex; align-items: flex-start; gap: 10px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  border-radius: 12px; padding: 14px 16px;
+  font-size: 13px; color: #3b82f6;
+  line-height: 1.5;
+}
+.checkout-modify-banner svg {
+  flex-shrink: 0; margin-top: 2px;
+  color: #3b82f6;
+}

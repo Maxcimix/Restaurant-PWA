@@ -6,6 +6,7 @@ import { formatCOP } from '../utils/constants';
 //   pantalla de éxito con número de orden y detalle completo,
 //   en lugar de redirigir directamente al tracker.
 //   El cliente puede ir al tracker desde esa pantalla.
+// NUEVO: Soporte para modificar órdenes existentes
 // ============================================================
 import { Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { useState } from 'react';
@@ -14,7 +15,7 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useCartStore }  from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAppStore }  from '../store/appStore';
-import { createOrder }   from '../services/orderService';
+import { createOrder, modifyOrder }   from '../services/orderService';
 import { ApiError }      from '../services/api';
 import type { CreateOrderPayload, Order } from '../types/order';
 import '../styles/checkout.css';
@@ -132,7 +133,10 @@ function OrderConfirmed({ order, onTrack, onNew }: {
 export default function Checkout() {
   const navigate                       = useNavigate();
   const { items, getTotal, clearCart } = useCartStore();
+  const activeOrder                    = useOrderStore((s) => s.activeOrder);
   const setActiveOrder                 = useOrderStore((s) => s.setActiveOrder);
+  const isModifying                    = useOrderStore((s) => s.isModifying);
+  const stopModifying                  = useOrderStore((s) => s.stopModifying);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
   const [notes,   setNotes]   = useState('');
@@ -165,29 +169,46 @@ export default function Checkout() {
     setLoading(true);
     setError(null);
 
-    const payload: CreateOrderPayload = {
-      table_id:       null,
-      source:         'autoservicio',
-      items: items.map((ci) => ({
-        menu_item_id:         ci.menuItem.id,
-        quantity:             ci.quantity,
-        special_instructions: ci.notes,
-      })),
-      payment_method: paymentMethod,
-      notes,
-    };
-
     try {
-      const order = await createOrder(payload);
+      let order: Order;
+
+      if (isModifying && activeOrder) {
+        // Modificar orden existente
+        order = await modifyOrder(activeOrder.id, {
+          items: items.map((ci) => ({
+            menu_item_id:         ci.menuItem.id,
+            quantity:             ci.quantity,
+            special_instructions: ci.notes,
+          })),
+        });
+        stopModifying();
+      } else {
+        // Crear nueva orden
+        const payload: CreateOrderPayload = {
+          table_id:       null,
+          source:         'autoservicio',
+          items: items.map((ci) => ({
+            menu_item_id:         ci.menuItem.id,
+            quantity:             ci.quantity,
+            special_instructions: ci.notes,
+          })),
+          payment_method: paymentMethod,
+          notes,
+        };
+        order = await createOrder(payload);
+      }
+
       setActiveOrder(order);
       clearCart();
-      // ✅ Mostrar pantalla de confirmación en lugar de redirigir
+      // Mostrar pantalla de confirmación en lugar de redirigir
       setConfirmedOrder(order);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Error al confirmar el pedido. Intenta de nuevo.'
+          : isModifying 
+            ? 'Error al modificar el pedido. Intenta de nuevo.'
+            : 'Error al confirmar el pedido. Intenta de nuevo.'
       );
     } finally {
       setLoading(false);
@@ -212,9 +233,24 @@ export default function Checkout() {
         <form className="checkout-form" onSubmit={handleConfirm}>
 
           <div className="checkout-hero">
-            <h1 className="checkout-h1">Confirmar pedido</h1>
-            <p className="checkout-sub">Revisa tu orden antes de enviar</p>
+            <h1 className="checkout-h1">
+              {isModifying ? 'Modificar pedido' : 'Confirmar pedido'}
+            </h1>
+            <p className="checkout-sub">
+              {isModifying 
+                ? `Editando orden #${activeOrder?.order_number}` 
+                : 'Revisa tu orden antes de enviar'}
+            </p>
           </div>
+
+          {isModifying && (
+            <div className="checkout-modify-banner">
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <path d="M13.5 4.5L4.5 13.5M4.5 4.5l9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              <span>Estas modificando tu pedido existente. Los cambios se aplicaran a la orden #{activeOrder?.order_number}</span>
+            </div>
+          )}
 
           {/* Resumen de items */}
           <section className="checkout-section">
@@ -291,9 +327,9 @@ export default function Checkout() {
 
           <button type="submit" className="confirm-btn" disabled={loading}>
             {loading ? (
-              <><span className="btn-spinner"/> Enviando pedido...</>
+              <><span className="btn-spinner"/> {isModifying ? 'Actualizando...' : 'Enviando pedido...'}</>
             ) : (
-              <>Confirmar pedido
+              <>{isModifying ? 'Guardar cambios' : 'Confirmar pedido'}
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M4 9h10M10 5l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>

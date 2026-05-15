@@ -10,7 +10,7 @@ import TablesMgmt from './pages/admin/TablesMgmt';
 import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAppStore } from './store/appStore';
-import { Lock } from 'lucide-react';
+
 import Home             from './pages/Home';
 import RoleSelectPage   from './pages/RoleSelectPage';
 import LoginPage        from './pages/LoginPage';

@@ -14,16 +14,21 @@ import type { Order, OrderStatus } from '../types/order';
 
 interface OrderState {
   activeOrder: Order | null;
+  isModifying: boolean;  // Flag para indicar que estamos en modo modificación
   setActiveOrder:    (order: Order) => void;
   // Llamado desde useWebSocket cuando llega order:status
   updateOrderStatus: (status: OrderStatus) => void;
   clearActiveOrder:  () => void;
+  // Modo modificación
+  startModifying:    () => void;
+  stopModifying:     () => void;
 }
 
 export const useOrderStore = create<OrderState>()(
   persist(
     (set) => ({
       activeOrder: null,
+      isModifying: false,
 
       setActiveOrder: (order) => set({ activeOrder: order }),
 
@@ -35,7 +40,10 @@ export const useOrderStore = create<OrderState>()(
             : null,
         })),
 
-      clearActiveOrder: () => set({ activeOrder: null }),
+      clearActiveOrder: () => set({ activeOrder: null, isModifying: false }),
+
+      startModifying: () => set({ isModifying: true }),
+      stopModifying:  () => set({ isModifying: false }),
     }),
     { name: 'rpwa-active-order' }
   )

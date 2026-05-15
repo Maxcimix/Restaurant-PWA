@@ -17,6 +17,8 @@ import {
   getOrderHistory,
   requestBill,
   deliverOrderItem,
+  modifyOrder,
+  canModifyOrder,
 } from '../controllers/orderController';
 import { closeOrder }        from '../controllers/cajaController';
 import { getOrderMetrics }   from '../controllers/metricsController';
@@ -71,6 +73,12 @@ router.post('/', createOrder);
 
 // ── Rutas con parámetro /:id ─────────────────────────────────
 router.get('/:id', getOrderById);
+
+// Verificar si la orden puede ser modificada (público - cliente autoservicio)
+router.get('/:id/can-modify', canModifyOrder);
+
+// Modificar orden antes de enviar a cocina (público - cliente autoservicio)
+router.patch('/:id/modify', modifyOrder);
 
 router.patch(
   '/:id/status',
