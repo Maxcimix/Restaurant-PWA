@@ -23,11 +23,14 @@ import { formatCOP } from '../../utils/constants';
 // ============================================================
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useParams }  from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAppStore }             from '../../store/appStore';
 import { useWaiterStore }          from '../../store/waiterStore';
 import { useMenu }                 from '../../hooks/useMenu';
-import { createWaiterOrder, getTables } from '../../services/waiterService';
+import {
+  createWaiterOrder, getTables,
+  modifyWaiterOrder, getOrderDetail,
+} from '../../services/waiterService';
 import { ApiError }                from '../../services/api';
 import type { MenuItem }           from '../../types/menu';
 import '../../styles/takeorder.css';
@@ -35,6 +38,10 @@ import '../../styles/takeorder.css';
 export default function TakeOrder() {
   const { tableId }  = useParams<{ tableId: string }>();
   const navigate     = useNavigate();
+  const location     = useLocation();
+  // modifyOrderId viene como state cuando el mesero pulsa "Modificar orden"
+  const modifyOrderId = (location.state as { modifyOrderId?: string } | null)?.modifyOrderId ?? null;
+  const isModifying  = !!modifyOrderId;
   const { user, brand }     = useAppStore();
 
   const {
@@ -61,15 +68,36 @@ export default function TakeOrder() {
   useEffect(() => {
     if (!tableId) return;
 
-    // Si no hay datos de la mesa en el store, cargarlos
     if (!table) {
       getTables().then(setTables).catch(() => {});
     }
 
-    // Iniciar carrito si no existe o es de otra mesa
     if (!cart || cart.tableId !== tableId) {
       const tableNumber = table?.number ?? 0;
       initCart(tableId, tableNumber);
+    }
+
+    // Modo modificación: pre-cargar items de la orden existente
+    if (isModifying && modifyOrderId) {
+      getOrderDetail(modifyOrderId)
+        .then((order) => {
+          if (!order.items) return;
+          // Limpiar carrito y cargar items de la orden
+          order.items.forEach((item) => {
+            addToCart({
+              menuItemId: item.menu_item_id,
+              name:       item.name,
+              price:      parseFloat(item.price as unknown as string),
+              notes:      item.special_instructions ?? '',
+            });
+            // Si hay más de 1 unidad, ajustar cantidad
+            if (item.quantity > 1) {
+              // addToCart agrega 1 por defecto, actualizar al real
+              updateCartQty(item.menu_item_id, item.quantity);
+            }
+          });
+        })
+        .catch(() => {/* Si falla, el mesero agrega items manualmente */});
     }
   }, [tableId]); // eslint-disable-line
 
@@ -91,7 +119,7 @@ export default function TakeOrder() {
     });
   }, [addToCart]);
 
-  // ── Enviar orden al backend ────────────────────────────────
+  // ── Enviar / Modificar orden al backend ───────────────────
   async function handleSubmit() {
     if (!cart || cart.items.length === 0 || !tableId) return;
 
@@ -99,27 +127,36 @@ export default function TakeOrder() {
     setSubmitError(null);
 
     try {
-      await createWaiterOrder({
-        table_id:       tableId,
-        source:         'waiter',
-        items: cart.items.map((i) => ({
-          menu_item_id:         i.menuItemId,
-          quantity:             i.quantity,
-          special_instructions: i.notes,
-        })),
-        notes:          cart.orderNotes,
-        waiter_id:      user?.id,
-      });
+      const mappedItems = cart.items.map((i) => ({
+        menu_item_id:         i.menuItemId,
+        quantity:             i.quantity,
+        special_instructions: i.notes,
+      }));
 
-      // Actualizar mesa a occupied en el store local
-      updateTableStatus(tableId, 'occupied');
+      if (isModifying && modifyOrderId) {
+        // Modificar orden existente
+        await modifyWaiterOrder(modifyOrderId, mappedItems);
+      } else {
+        // Crear nueva orden
+        await createWaiterOrder({
+          table_id:  tableId,
+          source:    'waiter',
+          items:     mappedItems,
+          notes:     cart.orderNotes,
+          waiter_id: user?.id,
+        });
+        updateTableStatus(tableId, 'occupied');
+      }
+
       clearCart();
       navigate('/mesero/dashboard');
     } catch (e) {
       setSubmitError(
         e instanceof ApiError
           ? e.message
-          : 'Error al enviar la orden. Intenta de nuevo.'
+          : isModifying
+            ? 'Error al modificar la orden. Intenta de nuevo.'
+            : 'Error al enviar la orden. Intenta de nuevo.'
       );
     } finally {
       setSubmitting(false);
@@ -148,7 +185,7 @@ export default function TakeOrder() {
 
         <div className="to-header-center">
           <h1 className="to-title">
-            Mesa {table?.number ?? '...'}
+            {isModifying ? 'Modificar orden · ' : ''}Mesa {table?.number ?? '...'}
           </h1>
           <span className="to-capacity">
             {table?.capacity ?? '—'} personas · {table?.section ?? ''}
@@ -410,7 +447,7 @@ export default function TakeOrder() {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M3 9l4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                Enviar a cocina
+                {isModifying ? 'Guardar cambios' : 'Enviar a cocina'}
               </>
             )}
           </button>

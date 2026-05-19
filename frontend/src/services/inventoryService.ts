@@ -27,11 +27,16 @@ export const getIngredients = (params?: {
   return apiFetch<Ingredient[]>(`${BASE}/ingredients${qs ? `?${qs}` : ''}`);
 };
 
-export const createIngredient = (data: IngredientForm): Promise<Ingredient> =>
-  apiFetch<Ingredient>(`${BASE}/ingredients`, { method: 'POST', body: JSON.stringify(data) });
+export const createIngredient = (data: IngredientForm): Promise<Ingredient> => {
+  // Normaliza supplier_id vacío a null para evitar error UUID en PostgreSQL
+  const body = { ...data, supplier_id: data.supplier_id || null };
+  return apiFetch<Ingredient>(`${BASE}/ingredients`, { method: 'POST', body: JSON.stringify(body) });
+};
 
-export const updateIngredient = (id: string, data: Partial<IngredientForm>): Promise<Ingredient> =>
-  apiFetch<Ingredient>(`${BASE}/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+export const updateIngredient = (id: string, data: Partial<IngredientForm>): Promise<Ingredient> => {
+  const body = { ...data, supplier_id: data.supplier_id || null };
+  return apiFetch<Ingredient>(`${BASE}/ingredients/${id}`, { method: 'PUT', body: JSON.stringify(body) });
+};
 
 export const deleteIngredient = (id: string): Promise<void> =>
   apiFetch<void>(`${BASE}/ingredients/${id}`, { method: 'DELETE' });

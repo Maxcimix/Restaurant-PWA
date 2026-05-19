@@ -1,6 +1,8 @@
 -- ============================================================
--- backend/database/schema.sql  —  Versión final (F11)
--- Incluye todas las tablas y columnas de F1 → F11
+-- backend/database/schema.sql  —  Versión consolidada final
+-- Incluye todas las tablas de F1 → F11
+-- Sin necesidad de 004_inventory.sql, 005_shift_f10.sql,
+-- ni 011_restaurant_config.sql por separado.
 -- ============================================================
 
 -- ── Secuencia para order_number único y atómico ──────────────
@@ -241,6 +243,19 @@ CREATE TABLE IF NOT EXISTS restaurant_config (
   updated_at       TIMESTAMPTZ   NOT NULL DEFAULT NOW()
 );
 
+-- Trigger para updated_at automático en restaurant_config
+CREATE OR REPLACE FUNCTION fn_update_restaurant_config_ts()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_restaurant_config_updated_at
+  BEFORE UPDATE ON restaurant_config
+  FOR EACH ROW EXECUTE FUNCTION fn_update_restaurant_config_ts();
+
 -- ── Índices ──────────────────────────────────────────────────
 CREATE INDEX idx_orders_table    ON orders(table_id);
 CREATE INDEX idx_orders_customer ON orders(customer_id);
@@ -250,7 +265,15 @@ CREATE INDEX idx_orders_status   ON orders(status);
 CREATE INDEX idx_orders_source   ON orders(source);
 CREATE INDEX idx_menu_items_cat  ON menu_items(category_id);
 CREATE INDEX idx_order_items_ord ON order_items(order_id);
-CREATE INDEX IF NOT EXISTS idx_ingredients_supplier ON ingredients(supplier_id);
-CREATE INDEX IF NOT EXISTS idx_inv_mov_ingredient   ON inventory_movements(ingredient_id);
-CREATE INDEX IF NOT EXISTS idx_inv_mov_created      ON inventory_movements(created_at);
-CREATE INDEX IF NOT EXISTS idx_shift_wd_cook        ON shift_withdrawals(cook_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_ingredients_supplier    ON ingredients(supplier_id);
+CREATE INDEX IF NOT EXISTS idx_ingredients_active      ON ingredients(is_active);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_ingredient      ON inventory_movements(ingredient_id);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_type            ON inventory_movements(type);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_created         ON inventory_movements(created_at);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_withdrawal      ON inventory_movements(shift_withdrawal_id);
+CREATE INDEX IF NOT EXISTS idx_inv_mov_order_item      ON inventory_movements(order_item_id);
+CREATE INDEX IF NOT EXISTS idx_shift_wd_cook           ON shift_withdrawals(cook_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_shift_wd_status         ON shift_withdrawals(status);
+CREATE INDEX IF NOT EXISTS idx_swi_remaining           ON shift_withdrawal_items(shift_withdrawal_id, quantity_remaining);
+CREATE INDEX IF NOT EXISTS idx_menu_item_ingr_item     ON menu_item_ingredients(menu_item_id);
+CREATE INDEX IF NOT EXISTS idx_menu_item_ingr_ingr     ON menu_item_ingredients(ingredient_id);

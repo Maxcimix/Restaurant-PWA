@@ -834,14 +834,11 @@ export async function modifyOrder(req: Request, res: Response) {
 export async function canModifyOrder(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    console.log('[v0] canModifyOrder called with id:', id);
     
     const result = await pool.query(
       `SELECT status FROM orders WHERE id = $1`,
       [id]
     );
-
-    console.log('[v0] canModifyOrder query result:', result.rows);
 
     if (!result.rows[0]) {
       return res.status(404).json({ message: 'Orden no encontrada' });
@@ -849,8 +846,6 @@ export async function canModifyOrder(req: Request, res: Response) {
 
     const modifiableStatuses = ['pending_payment', 'payment_confirmed', 'pending_validation'];
     const canModify = modifiableStatuses.includes(result.rows[0].status);
-
-    console.log('[v0] canModifyOrder - status:', result.rows[0].status, 'canModify:', canModify);
 
     return res.json({ 
       canModify, 
