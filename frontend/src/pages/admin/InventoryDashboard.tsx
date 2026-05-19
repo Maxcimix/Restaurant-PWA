@@ -1,13 +1,13 @@
 // ============================================================
 // frontend/src/pages/admin/InventoryDashboard.tsx  →  /admin/inventario
 //
-// Vista principal de la bodega. Muestra:
-//   - KPIs (total ingredientes, bajo stock, valor estimado)
-//   - Banner de alertas integrado
-//   - Tabla de ingredientes con acciones rápidas
-//   - Modales: crear/editar ingrediente, entrada, ajuste, historial
+// FIXES:
+//   - supplier_id vacío ('') se convierte a null antes de enviar al API
+//     (evitaba error 500 y que el modal no cerrara)
+//   - Llama load() tras guardar para refrescar datos con supplier_name
+//   - Feedback visual de éxito (toast verde temporal)
 // ============================================================
-import { Factory, ClipboardList, History, Package, Settings2, AlertTriangle } from 'lucide-react';
+import { Factory, ClipboardList, History, Package, Settings2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate }         from 'react-router-dom';
 import AdminLayout             from '../../components/admin/AdminLayout';
@@ -54,6 +54,14 @@ export default function InventoryDashboard() {
   const [search,     setSearch]     = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // FIX: feedback de éxito
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+
+  const showSuccess = (msg: string) => {
+    setSuccessMsg(msg);
+    setTimeout(() => setSuccessMsg(null), 3500);
+  };
+
   const load = useCallback(() => {
     setIngLoading(true);
     getIngredients({ search: search || undefined, status: filterStatus || undefined })
@@ -70,17 +78,24 @@ export default function InventoryDashboard() {
     if (!ingForm) return;
     setSaving(true);
     try {
+      // La normalización de supplier_id ('' → null) se hace en inventoryService
       if (editIngId) {
         const updated = await updateIngredient(editIngId, ingForm);
         updateIngredientInList(updated);
+        showSuccess(`"${updated.name}" actualizado correctamente`);
       } else {
-        const created = await createIngredient(ingForm);
-        setIngredients([...ingredients, created]);
+        await createIngredient(ingForm);
+        // Llama load() para refrescar la lista con supplier_name incluido
+        load();
+        showSuccess(`Ingrediente "${ingForm.name}" creado correctamente`);
       }
-      setIngForm(null); setEditIngId(null);
+      setIngForm(null);
+      setEditIngId(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
-    } finally { setSaving(false); }
+    } finally {
+      setSaving(false);
+    }
   }
 
   // ── Soft delete ──────────────────────────────────────────
@@ -89,6 +104,7 @@ export default function InventoryDashboard() {
     try {
       await deleteIngredient(id);
       removeIngredientFromList(id);
+      showSuccess('Ingrediente desactivado');
     } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error'); }
   }
 
@@ -100,6 +116,7 @@ export default function InventoryDashboard() {
       await registerEntry(entryForm);
       setEntryForm(null);
       load();
+      showSuccess('Entrada de mercancía registrada');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al registrar entrada');
     } finally { setSaving(false); }
@@ -113,6 +130,7 @@ export default function InventoryDashboard() {
       await registerAdjustment(adjForm);
       setAdjForm(null);
       load();
+      showSuccess('Ajuste de stock aplicado');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al registrar ajuste');
     } finally { setSaving(false); }
@@ -126,6 +144,22 @@ export default function InventoryDashboard() {
   return (
     <AdminLayout>
       <div className="admin-page">
+
+        {/* Toast de éxito */}
+        {successMsg && (
+          <div style={{
+            position: 'fixed', top: 20, right: 20, zIndex: 9999,
+            background: 'rgba(34,197,94,0.12)', border: '1px solid rgba(34,197,94,0.35)',
+            borderRadius: 12, padding: '12px 18px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            color: '#16a34a', fontSize: 14, fontWeight: 600,
+            boxShadow: '0 4px 24px rgba(0,0,0,0.12)',
+            animation: 'fadeIn 0.2s ease',
+          }}>
+            <CheckCircle size={16} />
+            {successMsg}
+          </div>
+        )}
 
         {/* Header */}
         <div className="admin-page-header">
@@ -306,7 +340,9 @@ export default function InventoryDashboard() {
                 </div>
               </div>
               <div className="admin-form-actions">
-                <button className="admin-btn-ghost" onClick={() => setIngForm(null)}>Cancelar</button>
+                <button className="admin-btn-ghost" onClick={() => { setIngForm(null); setEditIngId(null); }}>
+                  Cancelar
+                </button>
                 <button className="admin-btn-teal" onClick={handleSaveIng}
                   disabled={!ingForm.name || !ingForm.unit || saving}>
                   {saving ? 'Guardando...' : 'Guardar'}
