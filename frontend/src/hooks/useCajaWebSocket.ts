@@ -4,8 +4,8 @@ import { useCajaStore } from '../store/cajaStore';
 import { getOrderDetail } from '../services/cajaService';
 import type { OrderStatus } from '../types/order';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
-
+const WS_URL = import.meta.env.VITE_WS_URL ?? 
+  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 export function useCajaWebSocket(token: string | null) {
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectDelay = useRef(1_000);

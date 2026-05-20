@@ -27,10 +27,23 @@ dotenv.config();
 const app    = express();
 const server = createServer(app);
 
+const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost')
+  .split(',')
+  .map((o) => o.trim());
+
 app.use(cors({
-  origin:      process.env.CORS_ORIGIN ?? 'http://localhost:5173',
-  credentials: true,
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
+      callback(null, true);
+    } else {
+      callback(new Error(`CORS bloqueado: ${origin}`));
+    }
+  },
+    credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 

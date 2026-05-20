@@ -105,7 +105,9 @@ export async function createOrder(req: Request, res: Response) {
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax   = parseFloat((subtotal * 0.08).toFixed(2));
+    const settingsResult = await client.query(`SELECT value FROM settings WHERE key='tax_rate'`);
+const taxRate = parseFloat(settingsResult.rows[0]?.value ?? '0') / 100;
+const tax = parseFloat((subtotal * taxRate).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Generar order_number atómico

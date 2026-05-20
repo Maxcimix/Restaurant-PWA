@@ -134,6 +134,14 @@ CREATE TABLE audit_logs (
   timestamp     TIMESTAMP DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS order_timings (
+  id                    SERIAL PRIMARY KEY,
+  order_id              UUID REFERENCES orders(id),
+  time_to_kitchen_secs  INTEGER,
+  time_to_ready_secs    INTEGER,
+  time_total_secs       INTEGER,
+  created_at            TIMESTAMP DEFAULT NOW()
+);
 -- ── Índices ──────────────────────────────────────────────────
 CREATE INDEX idx_orders_table    ON orders(table_id);
 CREATE INDEX idx_orders_customer ON orders(customer_id);
@@ -143,3 +151,5 @@ CREATE INDEX idx_orders_status   ON orders(status);
 CREATE INDEX idx_orders_source   ON orders(source);
 CREATE INDEX idx_menu_items_cat  ON menu_items(category_id);
 CREATE INDEX idx_order_items_ord ON order_items(order_id);
+
+

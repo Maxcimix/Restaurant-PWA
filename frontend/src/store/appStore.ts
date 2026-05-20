@@ -41,7 +41,7 @@ const DEFAULT_BRAND: BrandConfig = {
   taxRate: 0, tipSuggestion: 0, currency: 'COP', timezone: 'America/Bogota',
 };
 
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 function applyCssVars(brand: BrandConfig) {
   const root = document.documentElement;
