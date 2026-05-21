@@ -709,12 +709,17 @@ export async function modifyOrder(req: Request, res: Response) {
 
     const order = orderResult.rows[0];
 
-    // Solo se puede modificar si está pendiente de pago o pago confirmado (antes de cocina)
-    const modifiableStatuses = ['pending_payment', 'payment_confirmed', 'pending_validation'];
+    // Estados modificables:
+    //   Autoservicio: pending_payment, payment_confirmed, pending_validation (antes de cocina)
+    //   Mesero:       sent_to_kitchen, in_preparation (el mesero puede ajustar mientras cocina prepara)
+    const modifiableStatuses = [
+      'pending_payment', 'payment_confirmed', 'pending_validation',
+      'sent_to_kitchen', 'in_preparation',
+    ];
     if (!modifiableStatuses.includes(order.status)) {
       await client.query('ROLLBACK');
       return res.status(400).json({ 
-        message: `No se puede modificar la orden en estado: ${order.status}. Solo se permite antes de enviar a cocina.` 
+        message: `No se puede modificar la orden en estado: ${order.status}.` 
       });
     }
 
@@ -844,13 +849,16 @@ export async function canModifyOrder(req: Request, res: Response) {
       return res.status(404).json({ message: 'Orden no encontrada' });
     }
 
-    const modifiableStatuses = ['pending_payment', 'payment_confirmed', 'pending_validation'];
+    const modifiableStatuses = [
+      'pending_payment', 'payment_confirmed', 'pending_validation',
+      'sent_to_kitchen', 'in_preparation',
+    ];
     const canModify = modifiableStatuses.includes(result.rows[0].status);
 
     return res.json({ 
       canModify, 
       status: result.rows[0].status,
-      reason: canModify ? null : 'La orden ya fue enviada a cocina y no puede modificarse'
+      reason: canModify ? null : 'La orden no puede modificarse en su estado actual',
     });
   } catch (err) {
     console.error('[orders/canModify]', err);

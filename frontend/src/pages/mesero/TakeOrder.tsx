@@ -72,17 +72,13 @@ export default function TakeOrder() {
       getTables().then(setTables).catch(() => {});
     }
 
-    if (!cart || cart.tableId !== tableId) {
-      const tableNumber = table?.number ?? 0;
-      initCart(tableId, tableNumber);
-    }
-
-    // Modo modificación: pre-cargar items de la orden existente
     if (isModifying && modifyOrderId) {
+      // Modo modificación: SIEMPRE limpiar el carrito primero para evitar
+      // duplicados si ya existe un carrito de esta mesa, luego cargar items de la orden
+      initCart(tableId, table?.number ?? 0);
       getOrderDetail(modifyOrderId)
         .then((order) => {
           if (!order.items) return;
-          // Limpiar carrito y cargar items de la orden
           order.items.forEach((item) => {
             addToCart({
               menuItemId: item.menu_item_id,
@@ -90,14 +86,15 @@ export default function TakeOrder() {
               price:      parseFloat(item.price as unknown as string),
               notes:      item.special_instructions ?? '',
             });
-            // Si hay más de 1 unidad, ajustar cantidad
             if (item.quantity > 1) {
-              // addToCart agrega 1 por defecto, actualizar al real
               updateCartQty(item.menu_item_id, item.quantity);
             }
           });
         })
-        .catch(() => {/* Si falla, el mesero agrega items manualmente */});
+        .catch(() => {/* Si falla, el mesero puede agregar items manualmente */});
+    } else if (!cart || cart.tableId !== tableId) {
+      // Orden nueva: inicializar carrito vacío solo si no existe uno para esta mesa
+      initCart(tableId, table?.number ?? 0);
     }
   }, [tableId]); // eslint-disable-line
 
