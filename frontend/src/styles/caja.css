@@ -529,3 +529,118 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .oc-btn-print:hover:not(:disabled) { color: #1D1D1F; background: rgba(28,20,16,0.09); }
 .oc-modal-actions { display: flex; gap: 10px; }
+/* ── Sección expandida del card ── */
+.oc-expanded {
+  border-top: 1px solid rgba(28,20,16,0.07);
+  padding-top: 10px;
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.oc-totals {
+  background: rgba(28,20,16,0.03);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.oc-total-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: #98989D;
+}
+.oc-total-final {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1D1D1F;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(28,20,16,0.08);
+}
+.oc-inline-section { display: flex; flex-direction: column; gap: 8px; }
+.oc-cash-block { display: flex; flex-direction: column; gap: 6px; }
+.oc-cash-label { font-size: 11px; font-weight: 600; color: #98989D; text-transform: uppercase; letter-spacing: 0.4px; }
+.oc-input-wrap {
+  display: flex;
+  align-items: center;
+  background: rgba(255,255,255,0.9);
+  border: 1.5px solid rgba(28,20,16,0.14);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.oc-input-wrap:focus-within { border-color: #f97316; }
+.oc-currency {
+  padding: 0 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #98989D;
+  background: rgba(28,20,16,0.04);
+  border-right: 1px solid rgba(28,20,16,0.1);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+}
+.oc-cash-input {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1D1D1F;
+  font-family: inherit;
+  outline: none;
+  width: 100%;
+}
+.oc-cash-input::-webkit-outer-spin-button,
+.oc-cash-input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.oc-cambio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  color: #16a34a;
+  font-weight: 500;
+}
+.oc-cambio strong { font-weight: 700; }
+.oc-inline-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 11px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: 'Cabinet Grotesk', sans-serif;
+  border: none;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.oc-inline-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.oc-inline-btn--orange { background: #f97316; color: #fff; }
+.oc-inline-btn--orange:hover:not(:disabled) { background: #ea6c10; }
+.oc-inline-btn--green { background: #22c55e; color: #fff; }
+.oc-inline-btn--green:hover:not(:disabled) { background: #16a34a; }
+.oc-monitoring {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #98989D;
+  padding: 8px 10px;
+  background: rgba(28,20,16,0.03);
+  border-radius: 8px;
+}
+.oc-monitoring-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #98989D;
+}

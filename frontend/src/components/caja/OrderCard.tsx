@@ -1,9 +1,4 @@
-// ============================================================
-// frontend/src/components/caja/OrderCard.tsx  —  Fase 4
-//
-// Tarjeta de orden con número, tiempo, estado, items y acciones.
-// Las acciones disponibles cambian según el estado de la orden.
-// ============================================================
+// frontend/src/components/caja/OrderCard.tsx
 import { Flame, Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { useState } from 'react';
 import type { OrderWithMeta } from '../../types/caja';
@@ -11,8 +6,8 @@ import type { OrderStatus } from '../../types/order';
 
 interface Props {
   order:      OrderWithMeta;
-  onValidate: (o: OrderWithMeta) => void;  // enviar a cocina
-  onClose:    (o: OrderWithMeta) => void;  // cerrar pedido
+  onValidate: (o: OrderWithMeta) => void;
+  onClose:    (o: OrderWithMeta) => void;
   disabled?:  boolean;
 }
 
@@ -28,8 +23,7 @@ const STATUS_LABELS: Partial<Record<OrderStatus, string>> = {
 export default function OrderCard({ order, onValidate, onClose, disabled }: Props) {
   const [expanded, setExpanded] = useState(false);
 
-  const isPending = ['pending_payment','payment_confirmed','pending_validation']
-    .includes(order.status);
+  const isPending = ['pending_payment','payment_confirmed','pending_validation'].includes(order.status);
   const isReady   = order.status === 'ready_for_pickup';
   const isKitchen = ['sent_to_kitchen','in_preparation'].includes(order.status);
 
@@ -37,9 +31,9 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
                   : order.elapsedMinutes === 1  ? '1 min'
                   : `${order.elapsedMinutes} min`;
 
-  const accentColor = isReady ? '#22c55e'
-    : order.isUrgent           ? '#ef4444'
-    : isKitchen                ? '#f97316'
+  const accentColor = isReady      ? '#22c55e'
+    : order.isUrgent               ? '#ef4444'
+    : isKitchen                    ? '#f97316'
     : 'rgba(255,255,255,0.08)';
 
   return (
@@ -72,17 +66,19 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
       {/* Meta */}
       <div className="oc-meta">
         <span className="oc-source">
-          {order.source === 'autoservicio' ? ' Autoservicio' : ' Mesero'}
+          {order.source === 'autoservicio' ? 'Autoservicio' : 'Mesero'}
         </span>
         {order.payment_method && (
           <span className="oc-payment">
-            <Banknote size={13}/>, <CreditCard size={13}/>, <ArrowLeftRight size={13}/>
+            {order.payment_method === 'efectivo' ? <Banknote size={13}/> 
+              : order.payment_method === 'tarjeta' ? <CreditCard size={13}/>
+              : <ArrowLeftRight size={13}/>}
             {' '}{order.payment_method}
           </span>
         )}
       </div>
 
-      {/* Items (expandibles) */}
+      {/* Ítems expandibles */}
       {expanded && (
         <div className="oc-items">
           {order.items?.map((item) => (
@@ -90,7 +86,6 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
               <span className="oc-qty">{item.quantity}×</span>
               <span className="oc-name">{item.name}</span>
               <span className="oc-price">
-                {/* FIX: getActiveOrders devuelve 'unit_price', getOrderById devuelve 'price' */}
                 ${(parseFloat(
                     ((item as unknown as Record<string,unknown>).unit_price ?? item.price) as string
                   ) * item.quantity).toFixed(2)}
@@ -109,7 +104,7 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
         </div>
       )}
 
-      {/* Footer con total + acciones */}
+      {/* Footer */}
       <div className="oc-footer">
         <span className="oc-total">
           ${parseFloat(order.total as unknown as string).toFixed(2)}
@@ -128,7 +123,7 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
               <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                 <path d="M1.5 6.5l3 3 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
-              Cerrar pedido
+              Entregar
             </button>
           )}
           {isKitchen && (

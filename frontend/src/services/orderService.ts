@@ -32,3 +32,36 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
 export async function getOrderById(orderId: string): Promise<Order> {
   return apiFetch<Order>(`/orders/${orderId}`);
 }
+
+/**
+ * Verifica si una orden puede ser modificada.
+ * Solo se puede modificar antes de enviar a cocina.
+ */
+export async function canModifyOrder(orderId: string): Promise<{
+  canModify: boolean;
+  status: string;
+  reason: string | null;
+}> {
+  return apiFetch<{ canModify: boolean; status: string; reason: string | null }>(
+    `/orders/${orderId}/can-modify`
+  );
+}
+
+/**
+ * Modifica una orden existente (agregar/quitar/cambiar items).
+ * Solo funciona si la orden está en estado pending_payment o payment_confirmed.
+ */
+export interface ModifyOrderPayload {
+  items: Array<{
+    menu_item_id: string;
+    quantity: number;
+    special_instructions?: string;
+  }>;
+}
+
+export async function modifyOrder(orderId: string, payload: ModifyOrderPayload): Promise<Order> {
+  return apiFetch<Order>(`/orders/${orderId}/modify`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}

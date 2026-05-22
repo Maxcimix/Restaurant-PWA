@@ -14,8 +14,8 @@ import { Navigate, useNavigate } from 'react-router-dom';
 import { useCartStore }  from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAppStore }  from '../store/appStore';
-import { createOrder }   from '../services/orderService';
-import { ApiError }      from '../services/api';
+import { createOrder, modifyOrder } from '../services/orderService';
+import { ApiError }                  from '../services/api';
 import type { CreateOrderPayload, Order } from '../types/order';
 import '../styles/checkout.css';
 
@@ -132,7 +132,10 @@ function OrderConfirmed({ order, onTrack, onNew }: {
 export default function Checkout() {
   const navigate                       = useNavigate();
   const { items, getTotal, clearCart } = useCartStore();
-  const setActiveOrder                 = useOrderStore((s) => s.setActiveOrder);
+  const setActiveOrder   = useOrderStore((s) => s.setActiveOrder);
+  const activeOrder      = useOrderStore((s) => s.activeOrder);
+  const isModifying      = useOrderStore((s) => s.isModifying);
+  const stopModifying    = useOrderStore((s) => s.stopModifying);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
   const [notes,   setNotes]   = useState('');
@@ -165,29 +168,45 @@ export default function Checkout() {
     setLoading(true);
     setError(null);
 
-    const payload: CreateOrderPayload = {
-      table_id:       null,
-      source:         'autoservicio',
-      items: items.map((ci) => ({
-        menu_item_id:         ci.menuItem.id,
-        quantity:             ci.quantity,
-        special_instructions: ci.notes,
-      })),
-      payment_method: paymentMethod,
-      notes,
-    };
-
     try {
-      const order = await createOrder(payload);
+      let order: Order;
+
+      if (isModifying && activeOrder) {
+        // Modificar orden existente
+        order = await modifyOrder(activeOrder.id, {
+          items: items.map((ci) => ({
+            menu_item_id:         ci.menuItem.id,
+            quantity:             ci.quantity,
+            special_instructions: ci.notes,
+          })),
+        });
+        stopModifying();
+      } else {
+        // Crear nueva orden
+        const payload: CreateOrderPayload = {
+          table_id:       null,
+          source:         'autoservicio',
+          items: items.map((ci) => ({
+            menu_item_id:         ci.menuItem.id,
+            quantity:             ci.quantity,
+            special_instructions: ci.notes,
+          })),
+          payment_method: paymentMethod,
+          notes,
+        };
+        order = await createOrder(payload);
+      }
+
       setActiveOrder(order);
       clearCart();
-      // ✅ Mostrar pantalla de confirmación en lugar de redirigir
       setConfirmedOrder(order);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : 'Error al confirmar el pedido. Intenta de nuevo.'
+          : isModifying
+            ? 'Error al modificar el pedido. Intenta de nuevo.'
+            : 'Error al confirmar el pedido. Intenta de nuevo.'
       );
     } finally {
       setLoading(false);

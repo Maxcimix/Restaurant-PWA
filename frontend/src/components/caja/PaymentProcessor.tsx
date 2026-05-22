@@ -1,12 +1,4 @@
-// ============================================================
-// frontend/src/components/caja/PaymentProcessor.tsx  —  Fase 4
-//
-// Modal que confirma el método de pago y valida la orden.
-// Calcula cambio para pagos en efectivo.
-// Al confirmar → PATCH /api/orders/:id/status → sent_to_kitchen
-// ============================================================
-
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import type { OrderWithMeta } from '../../types/caja';
 import { Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 
@@ -18,13 +10,31 @@ interface Props {
 }
 
 export default function PaymentProcessor({ order, onConfirm, onCancel, loading }: Props) {
-  const total          = parseFloat(order.total as unknown as string);
+  const total       = parseFloat(order.total as unknown as string);
   const [monto, setMonto] = useState('');
-  const montoParsed    = parseFloat(monto) || 0;
-  const cambio         = montoParsed > total ? montoParsed - total : 0;
-  const esEfectivo     = order.payment_method === 'efectivo';
+  const montoParsed = parseFloat(monto) || 0;
+  const cambio      = montoParsed > total ? montoParsed - total : 0;
+  const esEfectivo  = order.payment_method === 'efectivo';
+  const canConfirm  = !esEfectivo || montoParsed >= total;
 
-  const canConfirm = !esEfectivo || montoParsed >= total;
+  const inputRef   = useRef<HTMLInputElement>(null);
+  const confirmRef = useRef<HTMLButtonElement>(null);
+
+  // Al abrir: foco en input si efectivo, en botón confirmar si tarjeta/transferencia
+  useEffect(() => {
+    if (esEfectivo) inputRef.current?.focus();
+    else confirmRef.current?.focus();
+  }, [esEfectivo]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && canConfirm && !loading) {
+      onConfirm(order.id);
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      confirmRef.current?.focus();
+    }
+  };
 
   return (
     <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && onCancel()}>
@@ -38,7 +48,6 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
           </button>
         </div>
 
-        {/* Resumen */}
         <div className="pp-summary">
           <div className="pp-row">
             <span>Orden</span>
@@ -47,11 +56,11 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
           <div className="pp-row">
             <span>Método</span>
             <span className="pp-val pp-payment-badge">
-              {order.payment_method === 'efectivo' 
-  ? <><Banknote size={14}/> Efectivo</>
-  : order.payment_method === 'tarjeta' 
-  ? <><CreditCard size={14}/> Tarjeta</>
-  : <><ArrowLeftRight size={14}/> Transferencia</>}
+              {order.payment_method === 'efectivo'
+                ? <><Banknote size={14}/> Efectivo</>
+                : order.payment_method === 'tarjeta'
+                ? <><CreditCard size={14}/> Tarjeta</>
+                : <><ArrowLeftRight size={14}/> Transferencia</>}
             </span>
           </div>
           <div className="pp-divider" />
@@ -61,22 +70,24 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
           </div>
         </div>
 
-        {/* Monto recibido (solo efectivo) */}
         {esEfectivo && (
           <div className="pp-cash-section">
-            <label className="pp-label" htmlFor="pp-monto">Monto recibido</label>
+            <label className="pp-label" htmlFor="pp-monto">
+              Monto recibido <span style={{opacity:0.5, fontSize:'11px'}}>(Enter para confirmar)</span>
+            </label>
             <div className="pp-input-wrap">
               <span className="pp-currency">$</span>
               <input
+                ref={inputRef}
                 id="pp-monto"
                 type="number"
                 min={total}
-                step="0.01"
+                step="1000"
                 className="pp-input"
                 placeholder={total.toFixed(2)}
                 value={monto}
                 onChange={(e) => setMonto(e.target.value)}
-                autoFocus
+                onKeyDown={handleKeyDown}
               />
             </div>
             {cambio > 0 && (
@@ -91,13 +102,16 @@ export default function PaymentProcessor({ order, onConfirm, onCancel, loading }
         )}
 
         <div className="pp-actions">
-          <button className="pp-btn-cancel" onClick={onCancel} disabled={loading}>
+          <button className="pp-btn-cancel" onClick={onCancel} disabled={loading} tabIndex={0}>
             Cancelar
           </button>
           <button
+            ref={confirmRef}
             className="pp-btn-confirm"
             onClick={() => onConfirm(order.id)}
             disabled={loading || !canConfirm}
+            tabIndex={0}
+            onKeyDown={(e) => e.key === 'Enter' && canConfirm && !loading && onConfirm(order.id)}
           >
             {loading ? <span className="btn-spinner" /> : (
               <>

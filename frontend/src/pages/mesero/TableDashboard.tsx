@@ -37,16 +37,23 @@ const TABLE_STATUS_CONFIG: Record<TableStatus, {
 };
 
 // ── Componente tarjeta de mesa ───────────────────────────────
+// Estados en que el mesero puede modificar la orden
+const MODIFIABLE_STATUSES = [
+  'pending_payment', 'payment_confirmed', 'pending_validation',
+  'sent_to_kitchen', 'in_preparation',   // mesero puede modificar mientras cocina prepara
+];
+
 interface TableCardProps {
-  table:         Table;
-  onTakeOrder:   (table: Table) => void;
-  onDeliver:     (table: Table) => void;
-  onRequestBill: (table: Table) => void;
-  onViewDetail:  (table: Table) => void;
+  table:           Table;
+  onTakeOrder:     (table: Table) => void;
+  onDeliver:       (table: Table) => void;
+  onRequestBill:   (table: Table) => void;
+  onViewDetail:    (table: Table) => void;
+  onModifyOrder:   (table: Table) => void;  // NUEVO: modificar orden pendiente
 }
 
 const TableCard = memo(function TableCard({
-  table, onTakeOrder, onDeliver, onRequestBill, onViewDetail,
+  table, onTakeOrder, onDeliver, onRequestBill, onViewDetail, onModifyOrder,
 }: TableCardProps) {
   const cfg          = TABLE_STATUS_CONFIG[table.status];
   const isAvailable  = table.status === 'available';
@@ -54,6 +61,8 @@ const TableCard = memo(function TableCard({
   const isWaiting    = table.status === 'waiting_bill';
   const isReady      = table.current_order_status === 'ready_for_pickup';
   const isDelivered  = table.current_order_status === 'delivered';
+  const isModifiable = !!table.current_order_status &&
+    MODIFIABLE_STATUSES.includes(table.current_order_status);
 
   const elapsed = table.order_created_at
     ? Math.floor((Date.now() - new Date(table.order_created_at).getTime()) / 60_000)
@@ -170,15 +179,33 @@ const TableCard = memo(function TableCard({
           </button>
         )}
 
-        {/* Orden en proceso (cocina) → solo info */}
+        {/* Orden en proceso (cocina) → info + botón modificar si estado lo permite */}
         {isOccupied && !isReady && !isDelivered && table.current_order_id && (
-          <span className="tc-monitoring">
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-              <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.1"/>
-              <path d="M6.5 3.5v3l2 1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
-            </svg>
-            En proceso
-          </span>
+          <>
+            {isModifiable && (
+              <button
+                type="button"
+                className="tc-btn tc-btn-primary"
+                onClick={() => onModifyOrder(table)}
+                aria-label={`Modificar orden mesa ${table.number}`}
+                style={{ background: 'rgba(249,115,22,0.15)', color: '#f97316',
+                  border: '1px solid rgba(249,115,22,0.35)' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <path d="M9.5 2.5l2 2L4 12l-2.5.5.5-2.5L9.5 2.5z"
+                    stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                Modificar orden
+              </button>
+            )}
+            <span className="tc-monitoring">
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <circle cx="6.5" cy="6.5" r="5" stroke="currentColor" strokeWidth="1.1"/>
+                <path d="M6.5 3.5v3l2 1" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
+              </svg>
+              {isModifiable ? 'Pendiente de validar' : 'En proceso'}
+            </span>
+          </>
         )}
 
         {/* Mesa en waiting_bill → esperando que CAJA cobre y libere */}
@@ -226,6 +253,14 @@ export default function TableDashboard() {
 
   const handleTakeOrder = useCallback((table: Table) => {
     navigate(`/mesero/orden/${table.id}`);
+  }, [navigate]);
+
+  // Navega a TakeOrder en modo modificación, pasando el orderId como state
+  const handleModifyOrder = useCallback((table: Table) => {
+    if (!table.current_order_id) return;
+    navigate(`/mesero/orden/${table.id}`, {
+      state: { modifyOrderId: table.current_order_id },
+    });
   }, [navigate]);
 
   // Entrega exitosa → refrescar mesas
@@ -362,6 +397,7 @@ export default function TableDashboard() {
               onDeliver={(t) => setDeliverModal(t)}
               onRequestBill={(t) => setBillModal(t)}
               onViewDetail={handleViewDetail}
+              onModifyOrder={handleModifyOrder}
             />
           ))}
         </main>

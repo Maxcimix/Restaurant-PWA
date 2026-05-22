@@ -17,6 +17,8 @@ import {
   getOrderHistory,
   requestBill,
   deliverOrderItem,
+  canModifyOrder,
+  modifyOrder,
 } from '../controllers/orderController';
 import { closeOrder }        from '../controllers/cajaController';
 import { getOrderMetrics }   from '../controllers/metricsController';
@@ -94,5 +96,11 @@ router.post(
   requireRole(['caja', 'admin']),
   closeOrder
 );
+
+// Verificar si una orden puede modificarse (público — autoservicio y mesero)
+router.get('/:id/can-modify', canModifyOrder);
+
+// Modificar orden (público — autoservicio y mesero)
+router.patch('/:id/modify', modifyOrder);
 
 export default router;

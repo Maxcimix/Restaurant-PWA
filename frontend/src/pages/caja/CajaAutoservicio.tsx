@@ -1,9 +1,3 @@
-// ============================================================
-// frontend/src/pages/caja/CajaAutoservicio.tsx
-// FIX 4: Agrega botón "Historial de pedidos" en el header.
-// Solo cambia el header — toda la lógica Kanban es idéntica.
-// ============================================================
-
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate }       from 'react-router-dom';
 import { useAppStore }       from '../../store/appStore';
@@ -15,12 +9,11 @@ import {
 } from '../../services/cajaService';
 import OrderCard        from '../../components/caja/OrderCard';
 import PaymentProcessor from '../../components/caja/PaymentProcessor';
-import OrderClose       from '../../components/caja/OrderClose';
-import OrderHistory     from '../../components/shared/OrderHistory';   // FIX 4
-import type { OrderWithMeta, ReceiptData } from '../../types/caja';
+import OrderHistory     from '../../components/shared/OrderHistory';
+import type { OrderWithMeta } from '../../types/caja';
 import { COLUMN_STATUSES } from '../../types/caja';
 import '../../styles/caja.css';
-import '../../styles/orderhistory.css';  // FIX 4
+import '../../styles/orderhistory.css';
 
 export default function CajaAutoservicio() {
   const navigate = useNavigate();
@@ -35,11 +28,9 @@ export default function CajaAutoservicio() {
   } = useCajaStore();
 
   const [validateModal, setValidateModal] = useState<OrderWithMeta | null>(null);
-  const [closeModal,    setCloseModal]    = useState<OrderWithMeta | null>(null);
-  const [receipt,       setReceipt]       = useState<ReceiptData | undefined>();
   const [actionLoading, setActionLoading] = useState(false);
   const [actionError,   setActionError]   = useState<string | null>(null);
-  const [showHistory,   setShowHistory]   = useState(false);   // FIX 4
+  const [showHistory,   setShowHistory]   = useState(false);
 
   useEffect(() => {
     setLoading(true);
@@ -72,6 +63,7 @@ export default function CajaAutoservicio() {
     return () => clearInterval(t);
   }, [orders, setOrders]);
 
+  // Abre modal de pago
   const handleValidate = useCallback(async (orderId: string) => {
     setActionLoading(true);
     setActionError(null);
@@ -87,14 +79,13 @@ export default function CajaAutoservicio() {
     }
   }, [updateStatus]);
 
+  // Entrega directa sin modal
   const handleClose = useCallback(async (orderId: string) => {
     setActionLoading(true);
     setActionError(null);
     try {
-      const result = await closeOrder(orderId, {});
-      setReceipt(result.receipt);
+      await closeOrder(orderId, {});
       removeOrder(orderId);
-      setCloseModal(null);
     } catch (e: unknown) {
       setActionError(e instanceof Error ? e.message : 'Error al cerrar pedido');
     } finally {
@@ -133,13 +124,7 @@ export default function CajaAutoservicio() {
             <span className="stat-pill stat-orange">{enCocina.length} en cocina</span>
             <span className="stat-pill stat-green">{listos.length} listos</span>
           </div>
-          {/* FIX 4: Botón historial */}
-          <button
-            type="button"
-            className="history-trigger-btn"
-            onClick={() => setShowHistory(true)}
-            aria-label="Ver historial de pedidos del día"
-          >
+          <button type="button" className="history-trigger-btn" onClick={() => setShowHistory(true)}>
             <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
               <circle cx="7.5" cy="7.5" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
               <path d="M7.5 4.5v3l2 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
@@ -186,7 +171,7 @@ export default function CajaAutoservicio() {
                 : pendientes.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
-                      onClose={(ord) => setCloseModal(ord)}
+                      onClose={(ord) => handleClose(ord.id)}
                       disabled={actionLoading} />
                   ))
               }
@@ -205,7 +190,7 @@ export default function CajaAutoservicio() {
                 : enCocina.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
-                      onClose={(ord) => setCloseModal(ord)}
+                      onClose={(ord) => handleClose(ord.id)}
                       disabled={actionLoading} />
                   ))
               }
@@ -224,7 +209,7 @@ export default function CajaAutoservicio() {
                 : listos.map((o) => (
                     <OrderCard key={o.id} order={o}
                       onValidate={(ord) => setValidateModal(ord)}
-                      onClose={(ord) => setCloseModal(ord)}
+                      onClose={(ord) => handleClose(ord.id)}
                       disabled={actionLoading} />
                   ))
               }
@@ -241,20 +226,8 @@ export default function CajaAutoservicio() {
           loading={actionLoading}
         />
       )}
-      {closeModal && (
-        <OrderClose
-          order={closeModal}
-          receipt={receipt}
-          onConfirm={handleClose}
-          onCancel={() => { setCloseModal(null); setActionError(null); setReceipt(undefined); }}
-          loading={actionLoading}
-        />
-      )}
 
-      {/* FIX 4: Modal de historial */}
-      {showHistory && (
-        <OrderHistory onClose={() => setShowHistory(false)} />
-      )}
+      {showHistory && <OrderHistory onClose={() => setShowHistory(false)} />}
     </div>
   );
 }
