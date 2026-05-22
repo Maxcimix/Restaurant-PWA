@@ -79,6 +79,10 @@ export const requestBill = (
     body:   JSON.stringify(payload),
   });
 
+  /**
+ * Marca un ítem individual como entregado.
+ * Si todos los ítems quedan entregados, la orden pasa a 'delivered'.
+ */
 export const deliverItem = (
   orderId: string,
   itemId:  string

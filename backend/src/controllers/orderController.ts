@@ -105,7 +105,9 @@ export async function createOrder(req: Request, res: Response) {
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax   = parseFloat((subtotal * 0.08).toFixed(2));
+    const settingsResult = await client.query(`SELECT value FROM settings WHERE key='tax_rate'`);
+const taxRate = parseFloat(settingsResult.rows[0]?.value ?? '0') / 100;
+const tax = parseFloat((subtotal * taxRate).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Generar order_number atómico
@@ -180,6 +182,16 @@ const itemsResult = await pool.query(
 WHERE oi.order_id = $1`,
   [order.id]
 );
+const itemsResult = await pool.query(
+  `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+          oi.special_instructions, oi.status, oi.delivered_at,
+          mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+   FROM order_items oi 
+   JOIN menu_items mi ON oi.menu_item_id = mi.id
+   LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE oi.order_id = $1`,
+  [order.id]
+);
     // Broadcast order:new con items incluidos para que el monitor de caja
     // y la cocina tengan la información de platos desde el primer momento.
     broadcast({
@@ -244,7 +256,13 @@ export async function getOrderById(req: Request, res: Response) {
       return res.status(404).json({ message: 'Orden no encontrada' });
     }
 const itemsResult = await pool.query(
+const itemsResult = await pool.query(
       `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
               oi.special_instructions, oi.status, oi.delivered_at,
               mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
        FROM order_items oi
@@ -373,12 +391,24 @@ export async function getActiveOrders(_req: Request, res: Response) {
   'skip_kitchen',         COALESCE(mc.skip_kitchen, false),
   'delivered_at',         oi.delivered_at
 )
+          json_build_object(
+  'id',                   oi.id,
+  'name',                 mi.name,
+  'quantity',             oi.quantity,
+  'price',                oi.price,
+  'special_instructions', oi.special_instructions,
+  'skip_kitchen',         COALESCE(mc.skip_kitchen, false),
+  'delivered_at',         oi.delivered_at
+)
           ) FILTER (WHERE oi.id IS NOT NULL),
           '[]'
         ) AS items
       FROM orders o
       LEFT JOIN tables t       ON o.table_id = t.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
+      LEFT JOIN menu_items mi       ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc  ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
       LEFT JOIN menu_items mi       ON oi.menu_item_id = mi.id
 LEFT JOIN menu_categories mc  ON mi.category_id = mc.id
 WHERE o.status NOT IN ('completed', 'cancelled')

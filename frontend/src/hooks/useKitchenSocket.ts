@@ -16,8 +16,9 @@ import { useKitchenStore } from '../store/kitchenStore';
 import { apiFetch }        from '../services/api';
 import type { Order, OrderStatus } from '../types/order';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
 
+const WS_URL = import.meta.env.VITE_WS_URL ?? 
+  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 export function useKitchenSocket(token: string | null) {
   const wsRef            = useRef<WebSocket | null>(null);
   const reconnectDelay   = useRef(1_000);

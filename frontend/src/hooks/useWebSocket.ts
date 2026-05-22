@@ -2,8 +2,8 @@ import { useEffect, useRef, useCallback } from 'react';
 import { useOrderStore } from '../store/orderStore';
 import type { WsOrderStatusEvent, WsOrderReadyEvent } from '../types/order';
 
-
-const WS_URL               = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
+const WS_URL = import.meta.env.VITE_WS_URL ?? 
+  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 const RECONNECT_INITIAL_MS = 1_000;
 const RECONNECT_MAX_MS     = 30_000;
 const RECONNECT_MULTIPLIER = 2;

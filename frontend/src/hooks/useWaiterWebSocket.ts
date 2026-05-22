@@ -15,7 +15,8 @@ import { useWaiterStore } from '../store/waiterStore';
 import type { OrderStatus } from '../types/order';
 import type { TableStatus } from '../types/table';
 
-const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:3001';
+const WS_URL = import.meta.env.VITE_WS_URL ?? 
+  `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws`;
 
 export function useWaiterWebSocket(token: string | null) {
   const wsRef          = useRef<WebSocket | null>(null);
