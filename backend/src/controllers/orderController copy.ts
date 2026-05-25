@@ -23,7 +23,6 @@
 import { Request, Response } from 'express';
 import pool from '../utils/db';
 import { broadcast } from '../websocket/handlers';
-import redis from '../utils/redis';
 
 type OrderSource = 'autoservicio' | 'waiter' | 'kiosk';
 
@@ -106,7 +105,9 @@ export async function createOrder(req: Request, res: Response) {
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax   = parseFloat((subtotal * 0.08).toFixed(2));
+    const settingsResult = await client.query(`SELECT value FROM settings WHERE key='tax_rate'`);
+const taxRate = parseFloat(settingsResult.rows[0]?.value ?? '0') / 100;
+const tax = parseFloat((subtotal * taxRate).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Generar order_number atómico
@@ -218,8 +219,7 @@ WHERE oi.order_id = $1`,
         },
       });
     }
-    // Invalidar cache de órdenes activas para que la caja vea la nueva orden
-    await redis.del('orders:active').catch(() => null);
+
     return res.status(201).json({ ...order, items: itemsResult.rows });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -247,6 +247,11 @@ export async function getOrderById(req: Request, res: Response) {
     }
 const itemsResult = await pool.query(
       `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
               oi.special_instructions, oi.status, oi.delivered_at,
               mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
        FROM order_items oi
@@ -347,8 +352,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
         targetOrderId: updated.id,
       });
     }
-    // Invalidar cache al cambiar estado
-    await redis.del('orders:active').catch(() => null);
+
     return res.json(updated);
   } catch (err) {
     console.error('[orders/updateStatus]', err);
@@ -358,19 +362,7 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
 // ── GET /api/orders/active ───────────────────────────────────
 export async function getActiveOrders(_req: Request, res: Response) {
-  const CACHE_KEY = 'orders:active';
-  const TTL_SECONDS = 30; // 30 segundos — balance entre frescura y rendimiento
-
   try {
-    // 1. Intentar desde cache
-    const cached = await redis.get(CACHE_KEY).catch(() => null);
-    if (cached) {
-      console.log('[Redis] HIT: órdenes activas');
-      return res.json(JSON.parse(cached));
-    }
-
-    // 2. Consultar PostgreSQL
-    console.log('[Redis] MISS: órdenes activas — consultando BD');
     const result = await pool.query(`
       SELECT
         o.id, o.order_number, o.status, o.payment_method,
@@ -379,30 +371,39 @@ export async function getActiveOrders(_req: Request, res: Response) {
         t.number AS table_number,
         COALESCE(
           json_agg(
-            json_build_object(
-              'id',         oi.id,
-              'name',       mi.name,
-              'quantity',   oi.quantity,
-              'unit_price', oi.price,
-              'notes',      oi.special_instructions
-            )
+          json_build_object(
+  'id',                   oi.id,
+  'name',                 mi.name,
+  'quantity',             oi.quantity,
+  'price',                oi.price,
+  'special_instructions', oi.special_instructions,
+  'skip_kitchen',         COALESCE(mc.skip_kitchen, false),
+  'delivered_at',         oi.delivered_at
+)
+          json_build_object(
+  'id',                   oi.id,
+  'name',                 mi.name,
+  'quantity',             oi.quantity,
+  'price',                oi.price,
+  'special_instructions', oi.special_instructions,
+  'skip_kitchen',         COALESCE(mc.skip_kitchen, false),
+  'delivered_at',         oi.delivered_at
+)
           ) FILTER (WHERE oi.id IS NOT NULL),
           '[]'
         ) AS items
       FROM orders o
       LEFT JOIN tables t       ON o.table_id = t.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
-      LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status NOT IN ('completed', 'cancelled')
+      LEFT JOIN menu_items mi       ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc  ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
+      LEFT JOIN menu_items mi       ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc  ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
       GROUP BY o.id, t.number
       ORDER BY o.created_at ASC
     `);
-
-    // 3. Guardar en cache
-    await redis
-      .setEx(CACHE_KEY, TTL_SECONDS, JSON.stringify(result.rows))
-      .catch((err) => console.warn('[Redis] No se pudo cachear órdenes activas:', err.message));
-
     return res.json(result.rows);
   } catch (err) {
     console.error('[orders/active]', err);

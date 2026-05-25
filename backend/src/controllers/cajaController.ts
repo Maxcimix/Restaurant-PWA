@@ -14,6 +14,7 @@ import { Request, Response } from 'express';
 import pool                  from '../utils/db';
 import { broadcast }         from '../websocket/handlers';
 import type { AuthRequest }  from '../middleware/auth';
+import redis from '../utils/redis';
 
 // ── POST /api/orders/:id/close ───────────────────────────────
 export async function closeOrder(req: AuthRequest, res: Response) {
@@ -104,7 +105,7 @@ export async function closeOrder(req: AuthRequest, res: Response) {
       payload:       { orderId: id, status: 'completed' },
       targetOrderId: id,
     });
-
+    await redis.del('orders:active').catch(() => null);
     return res.json({
       order:   { ...order, status: 'completed', completed_at: now },
       receipt,

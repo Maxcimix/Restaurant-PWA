@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import pool from '../utils/db';            // ← default import, como tu db.ts exporta
 import { generateToken } from '../utils/jwt';
+import redis from '../utils/redis';
 
 // ─── POST /api/auth/login ────────────────────────────────────────────────────
 export async function login(req: Request, res: Response) {
@@ -145,5 +146,42 @@ export async function register(req: Request, res: Response) {
   } catch (err) {
     console.error('[auth/register]', err);
     return res.status(500).json({ message: 'Error interno del servidor' });
+  }
+}
+
+// backend/src/controllers/authController.ts
+// ... (todo el código existente se mantiene igual)
+
+// ─── POST /api/auth/logout ───────────────────────────────────────────────────
+// Agrega este import al inicio del archivo junto a los otros imports:
+// import redis from '../utils/redis';
+
+export async function logout(req: Request, res: Response) {
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader?.startsWith('Bearer ')) {
+      return res.status(400).json({ message: 'Token no proporcionado' });
+    }
+
+    const token = authHeader.split(' ')[1];
+
+    // Calcular cuánto tiempo le queda al token para expirar
+    // y guardar en blacklist ese mismo tiempo
+    const JWT_EXPIRES_HOURS = parseInt(
+      (process.env.JWT_EXPIRES ?? '8h').replace('h', '')
+    );
+    const ttlSeconds = JWT_EXPIRES_HOURS * 60 * 60; // ej: 8h = 28800 segundos
+
+    // Guardar el token en la blacklist con el mismo TTL que el JWT
+    // Cuando el token expire naturalmente, Redis lo borrará solo
+    await redis
+      .setEx(`blacklist:${token}`, ttlSeconds, '1')
+      .catch((err) => console.warn('[Redis] No se pudo agregar a blacklist:', err.message));
+
+    return res.json({ message: 'Sesión cerrada correctamente' });
+  } catch (err) {
+    console.error('[auth/logout]', err);
+    return res.status(500).json({ message: 'Error al cerrar sesión' });
   }
 }
