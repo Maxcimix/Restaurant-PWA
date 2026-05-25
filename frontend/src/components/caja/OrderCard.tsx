@@ -1,4 +1,3 @@
-// frontend/src/components/caja/OrderCard.tsx
 import { Flame, Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { useState } from 'react';
 import type { OrderWithMeta } from '../../types/caja';
@@ -27,8 +26,10 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
   const isReady   = order.status === 'ready_for_pickup';
   const isKitchen = ['sent_to_kitchen','in_preparation'].includes(order.status);
 
-  const timeLabel = order.elapsedMinutes < 1   ? 'Ahora'
-                  : order.elapsedMinutes === 1  ? '1 min'
+  const total = parseFloat(order.total as unknown as string);
+
+  const timeLabel = order.elapsedMinutes < 1  ? 'Ahora'
+                  : order.elapsedMinutes === 1 ? '1 min'
                   : `${order.elapsedMinutes} min`;
 
   const accentColor = isReady      ? '#22c55e'
@@ -39,7 +40,8 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
   return (
     <div
       className={`oc-card ${order.isUrgent ? 'oc-urgent' : ''} ${isReady ? 'oc-ready' : ''}`}
-      style={{ '--accent': accentColor } as React.CSSProperties}
+      style={{ '--accent': accentColor, cursor: 'pointer' } as React.CSSProperties}
+      onClick={() => setExpanded((v) => !v)}
     >
       {/* Header */}
       <div className="oc-header">
@@ -54,12 +56,10 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
             <Flame size={13}/>
             {timeLabel}
           </span>
-          <button className="oc-expand-btn" onClick={() => setExpanded((v) => !v)}>
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-              style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-              <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
+            style={{ transform: expanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', opacity: 0.35 }}>
+            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
         </div>
       </div>
 
@@ -70,7 +70,7 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
         </span>
         {order.payment_method && (
           <span className="oc-payment">
-            {order.payment_method === 'efectivo' ? <Banknote size={13}/> 
+            {order.payment_method === 'efectivo' ? <Banknote size={13}/>
               : order.payment_method === 'tarjeta' ? <CreditCard size={13}/>
               : <ArrowLeftRight size={13}/>}
             {' '}{order.payment_method}
@@ -80,14 +80,14 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
 
       {/* Ítems expandibles */}
       {expanded && (
-        <div className="oc-items">
+        <div className="oc-items" onClick={(e) => e.stopPropagation()}>
           {order.items?.map((item) => (
             <div key={item.id} className="oc-item-row">
               <span className="oc-qty">{item.quantity}×</span>
               <span className="oc-name">{item.name}</span>
               <span className="oc-price">
                 ${(parseFloat(
-                    ((item as unknown as Record<string,unknown>).unit_price ?? item.price) as string
+                    String((item as unknown as Record<string,unknown>).unit_price ?? item.price)
                   ) * item.quantity).toFixed(2)}
               </span>
             </div>
@@ -105,10 +105,8 @@ export default function OrderCard({ order, onValidate, onClose, disabled }: Prop
       )}
 
       {/* Footer */}
-      <div className="oc-footer">
-        <span className="oc-total">
-          ${parseFloat(order.total as unknown as string).toFixed(2)}
-        </span>
+      <div className="oc-footer" onClick={(e) => e.stopPropagation()}>
+        <span className="oc-total">${total.toFixed(2)}</span>
         <div className="oc-actions">
           {isPending && (
             <button className="oc-btn btn-primary" onClick={() => onValidate(order)} disabled={disabled}>

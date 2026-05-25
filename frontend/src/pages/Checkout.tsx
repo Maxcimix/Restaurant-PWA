@@ -10,7 +10,7 @@ import { formatCOP } from '../utils/constants';
 import { Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useCartStore }  from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAppStore }  from '../store/appStore';
@@ -18,6 +18,7 @@ import { createOrder, modifyOrder } from '../services/orderService';
 import { ApiError }                  from '../services/api';
 import type { CreateOrderPayload, Order } from '../types/order';
 import '../styles/checkout.css';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia';
 
@@ -32,6 +33,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
   onTrack: () => void;
   onNew:   () => void;
 }) {
+ 
   const subtotal = parseFloat(order.subtotal as unknown as string);
   const tax      = parseFloat(order.tax      as unknown as string ?? '0');
   const total    = parseFloat(order.total    as unknown as string);
@@ -130,6 +132,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
 
 // ── Pantalla principal de checkout ───────────────────────────
 export default function Checkout() {
+  const location = useLocation();
   const navigate                       = useNavigate();
   const { items, getTotal, clearCart } = useCartStore();
   const setActiveOrder   = useOrderStore((s) => s.setActiveOrder);
@@ -138,6 +141,7 @@ export default function Checkout() {
   const stopModifying    = useOrderStore((s) => s.stopModifying);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+  const [tipoConsumo, setTipoConsumo] = useState<'aqui' | 'llevar' | null>(null);
   const [notes,   setNotes]   = useState('');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -251,7 +255,35 @@ export default function Checkout() {
               ))}
             </ul>
           </section>
-
+{/* Tipo de consumo */}
+<section className="checkout-section">
+  <h2 className="section-title">Tipo de consumo</h2>
+  <div className="checkout-tipo">
+    <button
+      type="button"
+      className={`checkout-tipo-opt ${tipoConsumo === 'aqui' ? 'checkout-tipo-opt--active' : ''}`}
+      onClick={() => setTipoConsumo('aqui')}
+    >
+      <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+        <rect x="2" y="8" width="14" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M5 8V6a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      </svg>
+      Para comer aquí
+    </button>
+    <button
+      type="button"
+      className={`checkout-tipo-opt ${tipoConsumo === 'llevar' ? 'checkout-tipo-opt--active' : ''}`}
+      onClick={() => setTipoConsumo('llevar')}
+    >
+      <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+        <path d="M3 7h12l-1 8H4L3 7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+        <path d="M6 7V5a3 3 0 016 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        <path d="M1 7h16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      </svg>
+      Para llevar
+    </button>
+  </div>
+</section>
           {/* Método de pago */}
           <section className="checkout-section">
             <h2 className="section-title">Método de pago</h2>

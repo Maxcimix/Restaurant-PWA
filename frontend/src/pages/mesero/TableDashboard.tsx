@@ -18,14 +18,12 @@ import { useNavigate }         from 'react-router-dom';
 import { useAppStore }         from '../../store/appStore';
 import { useWaiterStore }      from '../../store/waiterStore';
 import { useWaiterWebSocket }  from '../../hooks/useWaiterWebSocket';
-import { getTables }           from '../../services/waiterService';
-import DeliveryConfirm         from '../../components/waiter/DeliveryConfirm';
 import BillRequestModal        from '../../components/waiter/BillRequestModal';
 import OrderStatus             from '../../components/waiter/OrderStatus';
 import OrderDetailModal        from '../../components/waiter/OrderDetailModal';
 import type { Table, TableStatus } from '../../types/table';
 import '../../styles/mesero.css';
-
+import { getTables, markAsDelivered } from '../../services/waiterService';
 // ── Colores y labels de estado de mesa ──────────────────────
 const TABLE_STATUS_CONFIG: Record<TableStatus, {
   label: string; cardClass: string; dotClass: string;
@@ -40,7 +38,7 @@ const TABLE_STATUS_CONFIG: Record<TableStatus, {
 // Estados en que el mesero puede modificar la orden
 const MODIFIABLE_STATUSES = [
   'pending_payment', 'payment_confirmed', 'pending_validation',
-  'sent_to_kitchen', 'in_preparation',   // mesero puede modificar mientras cocina prepara
+  'sent_to_kitchen',
 ];
 
 interface TableCardProps {
@@ -236,7 +234,7 @@ export default function TableDashboard() {
     setActiveSection, getSections, getFilteredTables,
   } = useWaiterStore();
 
-  const [deliverModal,     setDeliverModal]     = useState<Table | null>(null);
+  
   const [billModal,        setBillModal]         = useState<Table | null>(null);
   const [detailModal,      setDetailModal]       = useState<Table | null>(null);
 
@@ -264,10 +262,15 @@ export default function TableDashboard() {
   }, [navigate]);
 
   // Entrega exitosa → refrescar mesas
-  const handleDeliverSuccess = useCallback(() => {
-    setDeliverModal(null);
+  const handleDeliver = useCallback(async (table: Table) => {
+  if (!table.current_order_id) return;
+  try {
+    await markAsDelivered(table.current_order_id);
     getTables().then(setTables).catch(() => {});
-  }, [setTables]);
+  } catch (e) {
+    console.error('Error al entregar:', e);
+  }
+}, [setTables]);
 
   // Ver detalle de pedido
   const handleViewDetail = useCallback((table: Table) => {
@@ -394,7 +397,7 @@ export default function TableDashboard() {
               key={table.id}
               table={table}
               onTakeOrder={handleTakeOrder}
-              onDeliver={(t) => setDeliverModal(t)}
+              onDeliver={handleDeliver}
               onRequestBill={(t) => setBillModal(t)}
               onViewDetail={handleViewDetail}
               onModifyOrder={handleModifyOrder}
@@ -403,16 +406,7 @@ export default function TableDashboard() {
         </main>
       )}
 
-      {/* Modal de entrega */}
-      {deliverModal && deliverModal.current_order_id && (
-        <DeliveryConfirm
-          orderId={deliverModal.current_order_id}
-          orderNumber={deliverModal.current_order_number ?? '—'}
-          tableNumber={deliverModal.number}
-          onSuccess={handleDeliverSuccess}
-          onCancel={() => setDeliverModal(null)}
-        />
-      )}
+  
 
       {/* Modal de detalle del pedido */}
 {detailModal && detailModal.current_order_id && (
