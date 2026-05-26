@@ -6,19 +6,19 @@ import { formatCOP } from '../utils/constants';
 //   pantalla de éxito con número de orden y detalle completo,
 //   en lugar de redirigir directamente al tracker.
 //   El cliente puede ir al tracker desde esa pantalla.
-// NUEVO: Soporte para modificar órdenes existentes
 // ============================================================
 import { Banknote, CreditCard, ArrowLeftRight } from 'lucide-react';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { Navigate, useNavigate } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useCartStore }  from '../store/cartStore';
 import { useOrderStore } from '../store/orderStore';
 import { useAppStore }  from '../store/appStore';
-import { createOrder, modifyOrder }   from '../services/orderService';
-import { ApiError }      from '../services/api';
+import { createOrder, modifyOrder } from '../services/orderService';
+import { ApiError }                  from '../services/api';
 import type { CreateOrderPayload, Order } from '../types/order';
 import '../styles/checkout.css';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia';
 
@@ -33,6 +33,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
   onTrack: () => void;
   onNew:   () => void;
 }) {
+ 
   const subtotal = parseFloat(order.subtotal as unknown as string);
   const tax      = parseFloat(order.tax      as unknown as string ?? '0');
   const total    = parseFloat(order.total    as unknown as string);
@@ -131,14 +132,16 @@ function OrderConfirmed({ order, onTrack, onNew }: {
 
 // ── Pantalla principal de checkout ───────────────────────────
 export default function Checkout() {
+  const location = useLocation();
   const navigate                       = useNavigate();
   const { items, getTotal, clearCart } = useCartStore();
-  const activeOrder                    = useOrderStore((s) => s.activeOrder);
-  const setActiveOrder                 = useOrderStore((s) => s.setActiveOrder);
-  const isModifying                    = useOrderStore((s) => s.isModifying);
-  const stopModifying                  = useOrderStore((s) => s.stopModifying);
+  const setActiveOrder   = useOrderStore((s) => s.setActiveOrder);
+  const activeOrder      = useOrderStore((s) => s.activeOrder);
+  const isModifying      = useOrderStore((s) => s.isModifying);
+  const stopModifying    = useOrderStore((s) => s.stopModifying);
 
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+  const [tipoConsumo, setTipoConsumo] = useState<'aqui' | 'llevar' | null>(null);
   const [notes,   setNotes]   = useState('');
   const [loading, setLoading] = useState(false);
   const [error,   setError]   = useState<string | null>(null);
@@ -200,13 +203,12 @@ export default function Checkout() {
 
       setActiveOrder(order);
       clearCart();
-      // Mostrar pantalla de confirmación en lugar de redirigir
       setConfirmedOrder(order);
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : isModifying 
+          : isModifying
             ? 'Error al modificar el pedido. Intenta de nuevo.'
             : 'Error al confirmar el pedido. Intenta de nuevo.'
       );
@@ -233,24 +235,9 @@ export default function Checkout() {
         <form className="checkout-form" onSubmit={handleConfirm}>
 
           <div className="checkout-hero">
-            <h1 className="checkout-h1">
-              {isModifying ? 'Modificar pedido' : 'Confirmar pedido'}
-            </h1>
-            <p className="checkout-sub">
-              {isModifying 
-                ? `Editando orden #${activeOrder?.order_number}` 
-                : 'Revisa tu orden antes de enviar'}
-            </p>
+            <h1 className="checkout-h1">Confirmar pedido</h1>
+            <p className="checkout-sub">Revisa tu orden antes de enviar</p>
           </div>
-
-          {isModifying && (
-            <div className="checkout-modify-banner">
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M13.5 4.5L4.5 13.5M4.5 4.5l9 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              <span>Estas modificando tu pedido existente. Los cambios se aplicaran a la orden #{activeOrder?.order_number}</span>
-            </div>
-          )}
 
           {/* Resumen de items */}
           <section className="checkout-section">
@@ -268,7 +255,35 @@ export default function Checkout() {
               ))}
             </ul>
           </section>
-
+{/* Tipo de consumo */}
+<section className="checkout-section">
+  <h2 className="section-title">Tipo de consumo</h2>
+  <div className="checkout-tipo">
+    <button
+      type="button"
+      className={`checkout-tipo-opt ${tipoConsumo === 'aqui' ? 'checkout-tipo-opt--active' : ''}`}
+      onClick={() => setTipoConsumo('aqui')}
+    >
+      <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+        <rect x="2" y="8" width="14" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+        <path d="M5 8V6a4 4 0 018 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      </svg>
+      Para comer aquí
+    </button>
+    <button
+      type="button"
+      className={`checkout-tipo-opt ${tipoConsumo === 'llevar' ? 'checkout-tipo-opt--active' : ''}`}
+      onClick={() => setTipoConsumo('llevar')}
+    >
+      <svg width="20" height="20" viewBox="0 0 18 18" fill="none">
+        <path d="M3 7h12l-1 8H4L3 7z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
+        <path d="M6 7V5a3 3 0 016 0v2" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+        <path d="M1 7h16" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+      </svg>
+      Para llevar
+    </button>
+  </div>
+</section>
           {/* Método de pago */}
           <section className="checkout-section">
             <h2 className="section-title">Método de pago</h2>
@@ -327,9 +342,9 @@ export default function Checkout() {
 
           <button type="submit" className="confirm-btn" disabled={loading}>
             {loading ? (
-              <><span className="btn-spinner"/> {isModifying ? 'Actualizando...' : 'Enviando pedido...'}</>
+              <><span className="btn-spinner"/> Enviando pedido...</>
             ) : (
-              <>{isModifying ? 'Guardar cambios' : 'Confirmar pedido'}
+              <>Confirmar pedido
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M4 9h10M10 5l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                 </svg>

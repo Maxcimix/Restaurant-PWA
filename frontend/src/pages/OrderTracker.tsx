@@ -8,13 +8,14 @@ import { formatCOP } from '../utils/constants';
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOrderStore }   from '../store/orderStore';
-import { getOrderById, canModifyOrder }    from '../services/orderService';
-import { useWebSocket }    from '../hooks/useWebSocket';
-import { useCartStore }    from '../store/cartStore';
+import { useOrderStore }                    from '../store/orderStore';
+import { getOrderById, canModifyOrder }     from '../services/orderService';
+import { useWebSocket }                     from '../hooks/useWebSocket';
+import { useCartStore }                     from '../store/cartStore';
 import type { Order, OrderStatus, WsOrderReadyEvent } from '../types/order';
-import '../styles/ordertracker.css'; // ← lowercase
+import '../styles/ordertracker.css';
 import { PartyPopper, Pencil } from 'lucide-react';
+
 const STEPS: { status: OrderStatus; label: string; sub: string; icon: React.ReactNode }[] = [
   {
     status: 'pending_payment', label: 'Recibido', sub: 'Tu pedido fue registrado correctamente',
@@ -44,15 +45,15 @@ function getActiveStep(status: OrderStatus): number {
 
 function getStatusDisplay(status: OrderStatus): { title: string; color: string } {
   const map: Partial<Record<OrderStatus,{title:string;color:string}>> = {
-    pending_payment:    { title:'Pedido recibido',      color:'#6b6775' },
-    payment_confirmed:  { title:'Pago confirmado',      color:'#3b82f6' },
-    pending_validation: { title:'Validando pedido...',  color:'#eab308' },
-    sent_to_kitchen:    { title:'Enviado a cocina',     color:'#f97316' },
-    in_preparation:     { title:'En preparación ',   color:'#f97316' },
-    ready_for_pickup:   { title:'¡Pedido listo! ',   color:'#22c55e' },
-    delivered:          { title:'En camino',            color:'#22c55e' },
-    completed:          { title:'¡Buen provecho! ', color:'#22c55e' },
-    cancelled:          { title:'Pedido cancelado',     color:'#ef4444' },
+    pending_payment:    { title:'Pedido recibido',     color:'#6b6775' },
+    payment_confirmed:  { title:'Pago confirmado',     color:'#3b82f6' },
+    pending_validation: { title:'Validando pedido...', color:'#eab308' },
+    sent_to_kitchen:    { title:'Enviado a cocina',    color:'#f97316' },
+    in_preparation:     { title:'En preparación',      color:'#f97316' },
+    ready_for_pickup:   { title:'¡Pedido listo!',      color:'#22c55e' },
+    delivered:          { title:'En camino',           color:'#22c55e' },
+    completed:          { title:'¡Buen provecho!',     color:'#22c55e' },
+    cancelled:          { title:'Pedido cancelado',    color:'#ef4444' },
   };
   return map[status] ?? { title:'Procesando...', color:'#6b6775' };
 }
@@ -60,19 +61,20 @@ function getStatusDisplay(status: OrderStatus): { title: string; color: string }
 export default function OrderTracker() {
   const { id }   = useParams<{ id: string }>();
   const navigate = useNavigate();
+
   const activeOrder    = useOrderStore((s) => s.activeOrder);
   const setActiveOrder = useOrderStore((s) => s.setActiveOrder);
   const startModifying = useOrderStore((s) => s.startModifying);
   const { clearCart, addItem } = useCartStore();
-  
-  const [order,      setOrder]      = useState<Order | null>(activeOrder);
-  const [loading,    setLoading]    = useState(!activeOrder);
-  const [error,      setError]      = useState<string | null>(null);
-  const [readyAlert, setReadyAlert] = useState(false);
-  const [canModify,  setCanModify]  = useState(false);
+
+  const [order,          setOrder]          = useState<Order | null>(activeOrder);
+  const [loading,        setLoading]        = useState(!activeOrder);
+  const [error,          setError]          = useState<string | null>(null);
+  const [readyAlert,     setReadyAlert]     = useState(false);
+  const [canModify,      setCanModify]      = useState(false);
   const [checkingModify, setCheckingModify] = useState(true);
 
-  // Verificar si la orden puede ser modificada
+  // ── Verificar si la orden puede ser modificada ──────────────
   useEffect(() => {
     if (!id) return;
     setCheckingModify(true);
@@ -86,6 +88,7 @@ export default function OrderTracker() {
       .finally(() => setCheckingModify(false));
   }, [id, order?.status]);
 
+  // ── Cargar orden ────────────────────────────────────────────
   useEffect(() => {
     if (!id) return;
     if (activeOrder?.id === id) { setOrder(activeOrder); return; }
@@ -96,6 +99,7 @@ export default function OrderTracker() {
       .finally(() => setLoading(false));
   }, [id]); // eslint-disable-line
 
+  // ── Sincronizar estado desde el store (WebSocket) ───────────
   useEffect(() => {
     if (activeOrder?.id === id) {
       if (activeOrder) setOrder((prev) => prev ? { ...prev, status: activeOrder.status } : activeOrder);
@@ -111,34 +115,28 @@ export default function OrderTracker() {
     },
   });
 
-  // Handler para modificar la orden
+  // ── Cargar items al carrito y navegar al menú ───────────────
   const handleModifyOrder = async () => {
     if (!order || !order.items) return;
-    
-    // Limpiar carrito actual
     clearCart();
-    
-    // Cargar items de la orden al carrito
     for (const item of order.items) {
-      // Necesitamos crear un objeto MenuItem compatible
-      const menuItem = {
-        id: item.menu_item_id,
-        name: item.name,
-        price: parseFloat(item.price as unknown as string),
-        description: '',
-        category_id: '',
-        image_url: null,
-        is_available: true,
-        is_out_of_stock: false,
-        preparation_time: null,
-      };
-      addItem(menuItem, item.quantity, item.special_instructions || '');
+      addItem(
+        {
+          id:               item.menu_item_id,
+          name:             item.name,
+          price:            parseFloat(item.price as unknown as string),
+          description:      '',
+          category_id:      '',
+          image_url:        null,
+          is_available:     true,
+          is_out_of_stock:  false,
+          preparation_time: null,
+        },
+        item.quantity,
+        item.special_instructions || '',
+      );
     }
-    
-    // Marcar que estamos modificando
     startModifying();
-    
-    // Navegar al menú para modificar
     navigate('/autoservicio/menu');
   };
 
@@ -217,7 +215,7 @@ export default function OrderTracker() {
         <div className="tracker-items-header">
           <h3 className="tracker-items-title">Detalle del pedido</h3>
           {!checkingModify && canModify && (
-            <button 
+            <button
               className="tracker-modify-btn"
               onClick={handleModifyOrder}
               title="Modificar pedido"
@@ -227,22 +225,24 @@ export default function OrderTracker() {
             </button>
           )}
         </div>
+
         {order.items?.length ? (
           <ul className="tracker-items-list">
             {order.items.map((item) => (
               <li key={item.id} className="tracker-item">
                 <span className="ti-qty">{item.quantity}×</span>
                 <span className="ti-name">{item.name}</span>
-                {/* FIX: price puede venir como string de BD */}
                 <span className="ti-price">{formatCOP(parseFloat(item.price as unknown as string) * item.quantity)}</span>
               </li>
             ))}
           </ul>
         ) : <p className="tracker-items-empty">Cargando items...</p>}
+
         <div className="tracker-total">
           <span>Total</span>
           <span>{formatCOP(parseFloat(order.total as unknown as string))}</span>
         </div>
+
         {canModify && (
           <p className="tracker-modify-hint">
             Puedes modificar tu pedido antes de que sea enviado a cocina

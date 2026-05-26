@@ -17,8 +17,8 @@ import {
   getOrderHistory,
   requestBill,
   deliverOrderItem,
-  modifyOrder,
   canModifyOrder,
+  modifyOrder,
 } from '../controllers/orderController';
 import { closeOrder }        from '../controllers/cajaController';
 import { getOrderMetrics }   from '../controllers/metricsController';
@@ -102,5 +102,4 @@ router.post(
   requireRole(['caja', 'admin']),
   closeOrder
 );
-
 export default router;

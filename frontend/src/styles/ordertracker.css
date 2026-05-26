@@ -97,29 +97,25 @@
   border-radius:18px; padding:20px; display:flex; flex-direction:column; gap:12px;
 }
 .tracker-items-header {
-  display:flex; align-items:center; justify-content:space-between; gap:12px;
+  display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:4px;
 }
 .tracker-items-title { font-family:'Cabinet Grotesk',sans-serif; font-size:14px; font-weight:800; color:#1D1D1F; }
 .tracker-modify-btn {
   display:inline-flex; align-items:center; gap:6px;
-  padding:8px 14px; border-radius:10px;
-  background:rgba(249,115,22,.1); border:1px solid rgba(249,115,22,.25);
+  padding:7px 13px; border-radius:10px;
+  background:rgba(249,115,22,.12); border:1px solid rgba(249,115,22,.3);
   color:#FF6B35; cursor:pointer;
   font-family:'Satoshi',sans-serif; font-size:13px; font-weight:600;
   transition:all .2s ease;
 }
 .tracker-modify-btn:hover {
-  background:rgba(249,115,22,.18);
-  transform:translateY(-1px);
-  box-shadow:0 4px 12px rgba(249,115,22,.15);
-}
-.tracker-modify-btn:active {
-  transform:translateY(0);
+  background:rgba(249,115,22,.2); transform:translateY(-1px);
+  box-shadow:0 4px 12px rgba(249,115,22,.2);
 }
 .tracker-modify-hint {
   font-size:12px; color:#98989D; text-align:center;
-  padding-top:8px; border-top:1px dashed rgba(255,255,255,.07);
-  margin-top:4px;
+  padding-top:8px; margin-top:4px;
+  border-top:1px dashed rgba(150,150,150,.2);
 }
 .tracker-items-list  { list-style:none; display:flex; flex-direction:column; gap:8px; }
 .tracker-item { display:flex; align-items:center; gap:10px; }
