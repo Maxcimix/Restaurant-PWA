@@ -61,6 +61,8 @@ const configuredTip = brand.tipSuggestion;
   const subtotal  = parseFloat(String(order?.subtotal  ?? '0'));
   const tax       = parseFloat(String(order?.tax       ?? '0'));
   const baseTotal = parseFloat(String(order?.total     ?? '0'));
+  // Tasa real aplicada al pedido (no la del config actual, que puede haber cambiado)
+  const effectiveTaxRate = subtotal > 0 ? Math.round((tax / subtotal) * 100) : brand.taxRate;
 
   const tipValue = tipMode === 'percent'
     ? parseFloat(((subtotal * tipPercent) / 100).toFixed(2))
@@ -138,7 +140,7 @@ const configuredTip = brand.tipSuggestion;
                 <span>Subtotal</span><span>${subtotal.toFixed(2)}</span>
               </div>
               <div className="brm-sum-row">
-                <span>IVA ({brand.taxRate}%)</span><span>${tax.toFixed(2)}</span>
+                <span>IVA ({effectiveTaxRate}%)</span><span>${tax.toFixed(2)}</span>
               </div>
             </div>
 

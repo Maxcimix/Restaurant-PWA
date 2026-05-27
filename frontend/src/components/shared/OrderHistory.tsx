@@ -10,41 +10,41 @@ import { apiFetch } from '../../services/api';
 import '../../styles/orderhistory.css';
 
 interface HistoryItem {
-  name:     string;
+  name: string;
   quantity: number;
-  price:    number;
+  price: number;
   subtotal: number;
 }
 
 interface HistoryOrder {
-  id:             string;
-  order_number:   string;
-  status:         string;
+  id: string;
+  order_number: string;
+  status: string;
   payment_method: string | null;
   payment_status: string;
-  subtotal:       string;
-  tax:            string;
-  tip:            string;
-  total:          string;
-  source:         string;
-  created_at:     string;
-  completed_at:   string | null;
-  table_number:   number | null;
-  waiter_name:    string | null;
-  cashier_name:   string | null;
-  items:          HistoryItem[];
+  subtotal: string;
+  tax: string;
+  tip: string;
+  total: string;
+  source: string;
+  created_at: string;
+  completed_at: string | null;
+  table_number: number | null;
+  waiter_name: string | null;
+  cashier_name: string | null;
+  items: HistoryItem[];
 }
 
 interface HistorySummary {
-  totalOrders:   number;
-  totalRevenue:  number;
-  totalTips:     number;
+  totalOrders: number;
+  totalRevenue: number;
+  totalTips: number;
   avgOrderValue: number;
 }
 
 interface HistoryResponse {
-  date:    string;
-  orders:  HistoryOrder[];
+  date: string;
+  orders: HistoryOrder[];
   summary: HistorySummary;
 }
 
@@ -54,16 +54,16 @@ interface Props {
 
 const SOURCE_LABEL: Record<string, string> = {
   autoservicio: ' Auto',
-  waiter:       ' Mesero',
-  kiosk:        ' Kiosk',
+  waiter: ' Mesero',
+  kiosk: ' Kiosk',
 };
 
 const METHOD_LABEL: Record<string, string> = {
-  efectivo:        ' Efectivo',
-  tarjeta_debito:  ' Débito',
+  efectivo: ' Efectivo',
+  tarjeta_debito: ' Débito',
   tarjeta_credito: ' Crédito',
-  transferencia:   ' Transfer.',
-  tarjeta:         ' Tarjeta',
+  transferencia: ' Transfer.',
+  tarjeta: ' Tarjeta',
 };
 
 // Genera el HTML completo para la ventana de impresión
@@ -167,14 +167,17 @@ function buildPrintHTML(data: HistoryResponse): string {
 </html>`;
 }
 
+function getLocalDateStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 export default function OrderHistory({ onClose }: Props) {
-  const [data,     setData]     = useState<HistoryResponse | null>(null);
-  const [loading,  setLoading]  = useState(true);
-  const [error,    setError]    = useState<string | null>(null);
+  const [data, setData] = useState<HistoryResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [date,     setDate]     = useState(
-    new Date().toISOString().split('T')[0]
-  );
+  const [date, setDate] = useState(getLocalDateStr);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -228,7 +231,7 @@ export default function OrderHistory({ onClose }: Props) {
               type="date"
               className="history-date-input"
               value={date}
-              max={new Date().toISOString().split('T')[0]}
+              max={getLocalDateStr()}
               onChange={(e) => setDate(e.target.value)}
               aria-label="Seleccionar fecha"
             />
@@ -238,15 +241,15 @@ export default function OrderHistory({ onClose }: Props) {
               disabled={!data || loading}
             >
               <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
-                <rect x="2" y="5" width="11" height="8" rx="1" stroke="currentColor" strokeWidth="1.2"/>
+                <rect x="2" y="5" width="11" height="8" rx="1" stroke="currentColor" strokeWidth="1.2" />
                 <path d="M4 5V3a1 1 0 011-1h5a1 1 0 011 1v2M4 10h7"
-                  stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                  stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
               </svg>
               Imprimir cierre
             </button>
             <button className="modal-close-btn" onClick={onClose} aria-label="Cerrar">
               <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
               </svg>
             </button>
           </div>
@@ -336,7 +339,7 @@ export default function OrderHistory({ onClose }: Props) {
                         <span className="ho-expand">
                           <svg width="13" height="13" viewBox="0 0 13 13" fill="none"
                             style={{ transform: expanded.has(order.id) ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                            <path d="M2 4.5l4.5 4.5 4.5-4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                            <path d="M2 4.5l4.5 4.5 4.5-4.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                           </svg>
                         </span>
                       </div>

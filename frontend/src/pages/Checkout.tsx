@@ -37,6 +37,8 @@ function OrderConfirmed({ order, onTrack, onNew }: {
   const subtotal = parseFloat(order.subtotal as unknown as string);
   const tax      = parseFloat(order.tax      as unknown as string ?? '0');
   const total    = parseFloat(order.total    as unknown as string);
+  // Tasa real aplicada al pedido (no la config actual, que puede haber cambiado)
+  const effectiveTaxRate = subtotal > 0 ? Math.round((tax / subtotal) * 100) : 0;
   const { brand } = useAppStore();
   return (
     <div className="checkout-root">
@@ -87,7 +89,7 @@ function OrderConfirmed({ order, onTrack, onNew }: {
                 <span>{formatCOP(subtotal)}</span>
               </div>
               <div className="oc-total-row oc-total-tax">
-                <span>Impuesto ({brand.taxRate}%)</span>
+                <span>Impuesto ({effectiveTaxRate}%)</span>
                 <span>{formatCOP(tax)}</span>
               </div>
               <div className="oc-total-divider"/>

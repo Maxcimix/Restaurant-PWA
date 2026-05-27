@@ -38,6 +38,6 @@ export const formatCOP = (value: number | string): string => {
     style: 'currency',
     currency: 'COP',
     minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(num);
 };

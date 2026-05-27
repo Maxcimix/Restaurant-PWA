@@ -101,12 +101,18 @@ export async function createOrder(req: Request, res: Response) {
       }
     }
 
+    // Obtener tasa de IVA desde configuración (no hardcodeado)
+    const taxCfg = await client.query(
+      `SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1`
+    );
+    const taxRate = parseFloat(taxCfg.rows[0]?.value ?? '0') / 100;
+
     // Calcular totales en backend
     let subtotal = 0;
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax   = parseFloat((subtotal * 0.08).toFixed(2));
+    const tax   = parseFloat((subtotal * taxRate).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Generar order_number atómico
@@ -415,7 +421,7 @@ export async function getActiveOrders(_req: Request, res: Response) {
 export async function getOrderHistory(req: Request, res: Response) {
   try {
     const { date } = req.query; // opcional: YYYY-MM-DD, default hoy
-    const targetDate = date ? String(date) : new Date().toISOString().split('T')[0];
+    const targetDate = date ? String(date) : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
     const result = await pool.query(`
       SELECT
@@ -729,10 +735,9 @@ export async function modifyOrder(req: Request, res: Response) {
 
     // Estados modificables:
     //   Autoservicio: pending_payment, payment_confirmed, pending_validation (antes de cocina)
-    //   Mesero:       sent_to_kitchen, in_preparation (el mesero puede ajustar mientras cocina prepara)
     const modifiableStatuses = [
       'pending_payment', 'payment_confirmed', 'pending_validation',
-      'sent_to_kitchen', 'in_preparation',
+      'sent_to_kitchen',
     ];
     if (!modifiableStatuses.includes(order.status)) {
       await client.query('ROLLBACK');
@@ -769,12 +774,18 @@ export async function modifyOrder(req: Request, res: Response) {
     // Eliminar items actuales de la orden
     await client.query(`DELETE FROM order_items WHERE order_id = $1`, [id]);
 
+    // Obtener tasa de IVA desde configuración (no hardcodeado)
+    const taxCfgMod = await client.query(
+      `SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1`
+    );
+    const taxRateMod = parseFloat(taxCfgMod.rows[0]?.value ?? '0') / 100;
+
     // Calcular nuevos totales
     let subtotal = 0;
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax = parseFloat((subtotal * 0.08).toFixed(2));
+    const tax = parseFloat((subtotal * taxRateMod).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Actualizar totales de la orden
@@ -869,7 +880,7 @@ export async function canModifyOrder(req: Request, res: Response) {
 
     const modifiableStatuses = [
       'pending_payment', 'payment_confirmed', 'pending_validation',
-      'sent_to_kitchen', 'in_preparation',
+      'sent_to_kitchen',
     ];
     const canModify = modifiableStatuses.includes(result.rows[0].status);
 

@@ -11,13 +11,13 @@
 
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import pool   from '../utils/db';
+import pool from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';
 
 // ── GET /api/admin/stats ─────────────────────────────────────
 export async function getStats(_req: Request, res: Response) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
     const [ordersR, topTableR, topItemR, topWaiterR, byHourR, byCatR, bySourceR] =
       await Promise.all([
@@ -88,23 +88,23 @@ export async function getStats(_req: Request, res: Response) {
       ]);
 
     const today_data = ordersR.rows[0];
-    const topTable   = topTableR.rows[0] ?? { number: null, section: null, orders: 0 };
-    const topItem    = topItemR.rows[0]  ?? { name: null, category: null, qty: 0 };
-    const topWaiter  = topWaiterR.rows[0] ?? { name: null, orders: 0 };
+    const topTable = topTableR.rows[0] ?? { number: null, section: null, orders: 0 };
+    const topItem = topItemR.rows[0] ?? { name: null, category: null, qty: 0 };
+    const topWaiter = topWaiterR.rows[0] ?? { name: null, orders: 0 };
 
     return res.json({
       today: {
-        orders:           parseInt(today_data.orders),
-        revenue:          parseFloat(today_data.revenue),
-        avgTicket:        parseFloat(today_data.avg_ticket),
-        cancelledOrders:  parseInt(today_data.cancelled),
+        orders: parseInt(today_data.orders),
+        revenue: parseFloat(today_data.revenue),
+        avgTicket: parseFloat(today_data.avg_ticket),
+        cancelledOrders: parseInt(today_data.cancelled),
       },
-      topTable:  { number: topTable.number, section: topTable.section, orders: parseInt(topTable.orders) },
-      topItem:   { name: topItem.name, category: topItem.category, qty: parseInt(topItem.qty ?? '0') },
+      topTable: { number: topTable.number, section: topTable.section, orders: parseInt(topTable.orders) },
+      topItem: { name: topItem.name, category: topItem.category, qty: parseInt(topItem.qty ?? '0') },
       topWaiter: { name: topWaiter.name, orders: parseInt(topWaiter.orders ?? '0') },
-      byHour:    byHourR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
-      byCategory:byCatR.rows.map((r) => ({ category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
-      bySource:  bySourceR.rows.map((r) => ({ source: r.source, orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byHour: byHourR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byCategory: byCatR.rows.map((r) => ({ category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
+      bySource: bySourceR.rows.map((r) => ({ source: r.source, orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
     });
   } catch (err) {
     console.error('[admin/stats]', err);
@@ -190,20 +190,20 @@ export async function getReports(req: Request, res: Response) {
     return res.json({
       from, to,
       summary: {
-        totalOrders:    parseInt(s.total_orders),
-        totalRevenue:   parseFloat(s.total_revenue),
-        totalTips:      parseFloat(s.total_tips),
-        avgTicket:      parseFloat(s.avg_ticket),
+        totalOrders: parseInt(s.total_orders),
+        totalRevenue: parseFloat(s.total_revenue),
+        totalTips: parseFloat(s.total_tips),
+        avgTicket: parseFloat(s.avg_ticket),
         completionRate: parseFloat(s.completion_rate ?? '0'),
       },
-      byDay:       byDayR.rows.map((r) => ({ date: r.date, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), tips: parseFloat(r.tips) })),
-      topItems:    topItemsR.rows.map((r) => ({ name: r.name, category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
-      topWaiters:  topWaitersR.rows.map((r) => ({ name: r.name, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), avgTime: r.avg_time ? parseFloat(r.avg_time) : null })),
-      peakHours:   peakR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byDay: byDayR.rows.map((r) => ({ date: r.date, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), tips: parseFloat(r.tips) })),
+      topItems: topItemsR.rows.map((r) => ({ name: r.name, category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
+      topWaiters: topWaitersR.rows.map((r) => ({ name: r.name, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), avgTime: r.avg_time ? parseFloat(r.avg_time) : null })),
+      peakHours: peakR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
       avgTimings: {
-        toKitchen:   t.to_kitchen   ? parseFloat(t.to_kitchen)   : null,
-        preparation: t.preparation  ? parseFloat(t.preparation)  : null,
-        total:       t.total        ? parseFloat(t.total)        : null,
+        toKitchen: t.to_kitchen ? parseFloat(t.to_kitchen) : null,
+        preparation: t.preparation ? parseFloat(t.preparation) : null,
+        total: t.total ? parseFloat(t.total) : null,
       },
     });
   } catch (err) {
@@ -339,7 +339,7 @@ export async function updateMenuItem(req: Request, res: Response) {
       [category_id, name, description ?? null, price, preparation_time ?? 10, is_available, is_out_of_stock, image_url ?? null, id]
     );
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
-    const catR   = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
+    const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
     const countR = await pool.query('SELECT COUNT(*) FROM order_items WHERE menu_item_id=$1', [id]);
     return res.json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: parseInt(countR.rows[0].count) });
   } catch (err) {
@@ -407,7 +407,7 @@ export async function createAdminUser(req: Request, res: Response) {
     const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
     if (exists.rows[0]) return res.status(409).json({ message: 'El email ya está registrado' });
 
-    const hash   = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role_id, phone)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, email, first_name, last_name, is_active, created_at, phone`,

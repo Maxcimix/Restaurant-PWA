@@ -38,7 +38,7 @@ const TABLE_STATUS_CONFIG: Record<TableStatus, {
 // Estados en que el mesero puede modificar la orden
 const MODIFIABLE_STATUSES = [
   'pending_payment', 'payment_confirmed', 'pending_validation',
-  'sent_to_kitchen', 'in_preparation',   // mesero puede modificar mientras cocina prepara
+  'sent_to_kitchen', 
 ];
  
 interface TableCardProps {
