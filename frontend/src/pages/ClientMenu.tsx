@@ -1,4 +1,4 @@
-import { formatCOP } from '../utils/constants';
+
 // ============================================================
 // frontend/src/pages/ClientMenu.tsx  →  /autoservicio/menu
 //
@@ -11,12 +11,14 @@ import { formatCOP } from '../utils/constants';
 //   hardcodeados. Renderiza lo que venga del backend.
 // ============================================================
 
+import { formatCOP } from '../utils/constants';
 import { useState, useCallback } from 'react';
 import { useMenu } from '../hooks/useMenu';
 import { useCartStore } from '../store/cartStore';
 import Cart from '../components/autoservicio/Cart';
 import type { MenuItem } from '../types/menu';
 import '../styles/clientmenu.css';
+import { useStockAvailability } from '../hooks/useStockAvailability';
 
 export default function ClientMenu() {
   const { addItem, getTotalItems } = useCartStore();
@@ -33,10 +35,10 @@ export default function ClientMenu() {
 
   const [cartOpen, setCartOpen] = useState(false);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const { availability } = useStockAvailability();
 
   const totalItems = getTotalItems();
 
-  // Feedback visual 800ms al agregar item
   const handleAddItem = useCallback(
     (item: MenuItem) => {
       addItem(item, 1);
@@ -54,7 +56,6 @@ export default function ClientMenu() {
 
   return (
     <div className="menu-root">
-      {/* ── Header ── */}
       <header className="menu-header">
         <div className="menu-header-left">
           <div className="menu-logo">
@@ -70,7 +71,6 @@ export default function ClientMenu() {
           </div>
           <div>
             <p className="menu-brand">RestaurantPWA</p>
-            {/* Sin número de mesa — autoservicio no gestiona mesas */}
             <p className="menu-subtitle">Autoservicio</p>
           </div>
         </div>
@@ -92,13 +92,11 @@ export default function ClientMenu() {
         </button>
       </header>
 
-      {/* ── Hero ── */}
       <div className="menu-hero">
         <h1 className="menu-h1">¿Qué vas a pedir?</h1>
         <p className="menu-sub">Selecciona tus platos y agrega al carrito</p>
       </div>
 
-      {/* ── Estado de carga inicial ── */}
       {loading ? (
         <div className="menu-loading">
           <div className="spinner-ring" />
@@ -111,7 +109,6 @@ export default function ClientMenu() {
           <button onClick={() => window.location.reload()}>Reintentar</button>
         </div>
       ) : !hasCategories ? (
-        /* Estado vacío — el Admin aún no creó categorías */
         <div className="menu-empty-state">
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
             <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
@@ -122,11 +119,8 @@ export default function ClientMenu() {
         </div>
       ) : (
         <>
-          {/* ── Tabs de categorías — dinámico, key = cat.id ── */}
           <nav className="cat-tabs" aria-label="Categorías del menú">
             {categories.map((cat) => (
-              // CRÍTICO: key es cat.id (UUID único), nunca el índice.
-              // Esto evita el bug de duplicados en React.
               <button
                 key={cat.id}
                 className={`cat-tab ${activeCategory === cat.id ? 'cat-tab--active' : ''}`}
@@ -134,22 +128,18 @@ export default function ClientMenu() {
                 aria-selected={activeCategory === cat.id}
                 role="tab"
               >
-                {/* Ícono opcional — viene del backend, puede ser null */}
                 {cat.icon && (
                   <span className="cat-tab-icon" aria-hidden="true">
                     {cat.icon}
                   </span>
                 )}
-                {/* Nombre 100% dinámico — no hardcodeado */}
                 {cat.name}
               </button>
             ))}
           </nav>
 
-          {/* ── Grid de items ── */}
           <div className="menu-content">
             {loadingItems ? (
-              /* Skeletons mientras cargan los items de la categoría */
               <div className="items-loading" aria-busy="true" aria-label="Cargando items">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <div
@@ -165,75 +155,75 @@ export default function ClientMenu() {
               </div>
             ) : (
               <ul className="items-grid" role="list">
-                {items.map((item, i) => (
-                  <li
-                    key={item.id}
-                    className={`item-card ${item.is_out_of_stock ? 'item-card--out' : ''}`}
-                    style={{ animationDelay: `${i * 0.05}s` }}
-                  >
-                    {/* Imagen del item — puede no existir */}
-                    <div className="item-img-wrap">
-                      {item.image_url ? (
-                        <img
-                          src={item.image_url}
-                          alt={item.name}
-                          className="item-img"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="item-img-placeholder" aria-hidden="true">
-                          <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
-                            <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
-                            <path d="M10 16c0-3.31 2.69-6 6-6s6 2.69 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
-                          </svg>
-                        </div>
-                      )}
-                      {item.is_out_of_stock && (
-                        <div className="item-out-badge">Agotado</div>
-                      )}
-                      {item.preparation_time != null && !item.is_out_of_stock && (
-                        <div className="item-time-badge">~{item.preparation_time} min</div>
-                      )}
-                    </div>
-
-                    {/* Info del item */}
-                    <div className="item-body">
-                      <h3 className="item-name">{item.name}</h3>
-                      {item.description && (
-                        <p className="item-desc">{item.description}</p>
-                      )}
-                      <div className="item-footer">
-                        <span className="item-price">
-                          {formatCOP(item.price)}
-                        </span>
-                        <button
-                          className={`item-add-btn ${addedIds.has(item.id) ? 'item-add-btn--added' : ''}`}
-                          onClick={() => handleAddItem(item)}
-                          disabled={item.is_out_of_stock}
-                          aria-label={`Agregar ${item.name} al carrito`}
-                        >
-                          {addedIds.has(item.id) ? (
-                            /* Checkmark de confirmación */
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                              <path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                {items.map((item, i) => {
+                  const isOutOfStock = item.is_out_of_stock || !(availability[item.id]?.available ?? true);
+                  const stockReason  = availability[item.id]?.reason;
+                  return (
+                    <li
+                      key={item.id}
+                      className={`item-card ${isOutOfStock ? 'item-card--out' : ''}`}
+                      style={{ animationDelay: `${i * 0.05}s` }}
+                    >
+                      <div className="item-img-wrap">
+                        {item.image_url ? (
+                          <img
+                            src={item.image_url}
+                            alt={item.name}
+                            className="item-img"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="item-img-placeholder" aria-hidden="true">
+                            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+                              <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.5" opacity="0.3" />
+                              <path d="M10 16c0-3.31 2.69-6 6-6s6 2.69 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.5" />
                             </svg>
-                          ) : (
-                            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                              <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-                            </svg>
-                          )}
-                        </button>
+                          </div>
+                        )}
+                        {isOutOfStock && (
+                          <div className="item-out-badge" title={stockReason}>Agotado</div>
+                        )}
+                        {item.preparation_time != null && !isOutOfStock && (
+                          <div className="item-time-badge">~{item.preparation_time} min</div>
+                        )}
                       </div>
-                    </div>
-                  </li>
-                ))}
+
+                      <div className="item-body">
+                        <h3 className="item-name">{item.name}</h3>
+                        {item.description && (
+                          <p className="item-desc">{item.description}</p>
+                        )}
+                        <div className="item-footer">
+                          <span className="item-price">
+                            {formatCOP(item.price)}
+                          </span>
+                          <button
+                            className={`item-add-btn ${addedIds.has(item.id) ? 'item-add-btn--added' : ''}`}
+                            onClick={() => handleAddItem(item)}
+                            disabled={isOutOfStock}
+                            aria-label={`Agregar ${item.name} al carrito`}
+                          >
+                            {addedIds.has(item.id) ? (
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M3 8l3 3 7-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            ) : (
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                                <path d="M8 2v12M2 8h12" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
         </>
       )}
 
-      {/* ── FAB flotante en móvil ── */}
       {totalItems > 0 && (
         <button className="cart-fab" onClick={() => setCartOpen(true)}>
           <svg width="20" height="20" viewBox="0 0 22 22" fill="none">
@@ -243,7 +233,6 @@ export default function ClientMenu() {
         </button>
       )}
 
-      {/* ── Sidebar del carrito ── */}
       <Cart isOpen={cartOpen} onClose={() => setCartOpen(false)} />
     </div>
   );

@@ -24,6 +24,8 @@ import { Request, Response } from 'express';
 import pool from '../utils/db';
 import { broadcast } from '../websocket/handlers';
 import redis from '../utils/redis';
+import { InventoryValidationService } from '../services/InventoryValidationService';
+import { StockDeductionService }      from '../services/StockDeductionService';
 
 type OrderSource = 'autoservicio' | 'waiter' | 'kiosk';
 
@@ -101,6 +103,21 @@ export async function createOrder(req: Request, res: Response) {
       }
     }
 
+    // ── VALIDACIÓN DE STOCK ─────────────────────────────────
+    // Verifica bodega cocina (platos preparados) o principal (productos directos)
+    const validation = await InventoryValidationService.validateOrderAvailability(
+      items.map((i) => ({ menu_item_id: i.menu_item_id, quantity: i.quantity })),
+      client
+    );
+
+    if (!validation.valid) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        message:          'Stock insuficiente para completar el pedido',
+        unavailableItems: validation.unavailableItems,
+      });
+    }
+
     // Obtener tasa de IVA desde configuración (no hardcodeado)
     const taxCfg = await client.query(
       `SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1`
@@ -122,8 +139,24 @@ export async function createOrder(req: Request, res: Response) {
     // Insertar la orden con waiter_id si viene del mesero
     // FLUJO MESERO: la orden va directo a cocina (sent_to_kitchen).
     // FLUJO AUTOSERVICIO: primero pasa por caja (pending_payment).
-    const initialStatus = source === 'waiter' ? 'sent_to_kitchen' : 'pending_payment';
-    const sentToKitchenAt = source === 'waiter' ? 'NOW()' : 'NULL';
+    // Verificar si TODOS los ítems son skip_kitchen
+    // Si todos son skip_kitchen → el mesero los entrega él mismo, no va a cocina
+    let allSkipKitchen = false;
+    if (source === 'waiter') {
+      const skipCheck = await client.query(
+        `SELECT BOOL_AND(COALESCE(mc.skip_kitchen, false)) AS all_skip
+         FROM menu_items mi
+         LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+         WHERE mi.id = ANY($1::uuid[])`,
+        [itemIds]
+      );
+      allSkipKitchen = skipCheck.rows[0]?.all_skip ?? false;
+    }
+
+    const initialStatus   = source === 'waiter'
+      ? (allSkipKitchen ? 'ready_for_pickup' : 'sent_to_kitchen')
+      : 'pending_payment';
+    const sentToKitchenAt = (source === 'waiter' && !allSkipKitchen) ? 'NOW()' : 'NULL';
 
     const orderResult = await client.query(
       `INSERT INTO orders
@@ -146,15 +179,18 @@ export async function createOrder(req: Request, res: Response) {
     );
     const order = orderResult.rows[0];
 
-    // Insertar items
+    // Insertar items y recopilar IDs para el descuento de stock
+    const orderItemIds: Record<string, string> = {};
     for (const item of items) {
-      const mi = menuMap.get(item.menu_item_id)!;
-      await client.query(
+      const mi  = menuMap.get(item.menu_item_id)!;
+      const oiR = await client.query(
         `INSERT INTO order_items
            (order_id, menu_item_id, quantity, price, special_instructions, status)
-         VALUES ($1,$2,$3,$4,$5,'pending')`,
+         VALUES ($1,$2,$3,$4,$5,'pending')
+         RETURNING id`,
         [order.id, item.menu_item_id, item.quantity, mi.price, item.special_instructions ?? null]
       );
+      orderItemIds[item.menu_item_id] = oiR.rows[0].id as string;
     }
 
     // FIX 1: Si la orden es del mesero, marcar la mesa como 'occupied'
@@ -166,6 +202,22 @@ export async function createOrder(req: Request, res: Response) {
       );
     }
 
+    // ── DESCUENTO ATÓMICO DE STOCK ──────────────────────────
+    const deductionItems = items.map((i) => ({
+      menu_item_id:   i.menu_item_id,
+      menu_item_name: menuMap.get(i.menu_item_id)!.name as string,
+      quantity:       i.quantity,
+      order_item_id:  orderItemIds[i.menu_item_id],
+    }));
+
+    const userId = (req as Request & { user?: { id: string } }).user?.id ?? null;
+
+    const deduction = await StockDeductionService.deductStockForOrder(
+      deductionItems,
+      userId,
+      client
+    );
+
     await client.query(
       `INSERT INTO audit_logs (action, resource_type, resource_id)
        VALUES ('order_created','order',$1)`,
@@ -173,6 +225,11 @@ export async function createOrder(req: Request, res: Response) {
     );
 
     await client.query('COMMIT');
+
+    // Broadcast items agotados DESPUÉS del commit
+    if (deduction.newlyOutOfStock.length > 0) {
+      StockDeductionService.broadcastOutOfStock(deduction.newlyOutOfStock);
+    }
 
     // Obtener items CON nombres ANTES del broadcast para incluirlos en el payload.
     // Antes este query estaba después del broadcast, por lo que order:new llegaba
@@ -384,22 +441,23 @@ export async function getActiveOrders(_req: Request, res: Response) {
         o.created_at, o.updated_at,
         t.number AS table_number,
         COALESCE(
-          json_agg(
-            json_build_object(
-              'id',         oi.id,
-              'name',       mi.name,
-              'quantity',   oi.quantity,
-              'unit_price', oi.price,
-              'notes',      oi.special_instructions
-            )
-          ) FILTER (WHERE oi.id IS NOT NULL),
-          '[]'
-        ) AS items
+  json_agg(
+    json_build_object(
+      'id',         oi.id,
+      'name',       mi.name,
+      'quantity',   oi.quantity,
+      'unit_price', oi.price,
+      'notes',      oi.special_instructions
+    )
+  ) FILTER (WHERE oi.id IS NOT NULL AND COALESCE(mc.skip_kitchen, false) = false),
+  '[]'
+) AS items
       FROM orders o
       LEFT JOIN tables t       ON o.table_id = t.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
-      LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status NOT IN ('completed', 'cancelled')
+     LEFT JOIN menu_items mi     ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
       GROUP BY o.id, t.number
       ORDER BY o.created_at ASC
     `);
@@ -453,7 +511,8 @@ export async function getOrderHistory(req: Request, res: Response) {
       LEFT JOIN users uc   ON o.cashier_id = uc.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status IN ('completed', 'cancelled')
+LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
         AND DATE(o.created_at AT TIME ZONE 'America/Bogota') = $1
       GROUP BY o.id, t.number, uw.first_name, uw.last_name, uc.first_name, uc.last_name
       ORDER BY o.created_at DESC

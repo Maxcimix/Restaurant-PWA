@@ -108,3 +108,18 @@ export async function invalidateMenuCache(): Promise<void> {
     console.log(`[Redis] Cache del menú invalidado (${keys.length} keys)`);
   }
 }
+
+import { InventoryValidationService } from '../services/InventoryValidationService';
+
+export async function getMenuAvailability(_req: Request, res: Response) {
+  const client = await pool.connect();
+  try {
+    const availability = await InventoryValidationService.getMenuAvailability(client);
+    return res.json(availability);
+  } catch (err) {
+    console.error('[menu/availability]', err);
+    return res.status(500).json({ message: 'Error al obtener disponibilidad del menú' });
+  } finally {
+    client.release();
+  }
+}
