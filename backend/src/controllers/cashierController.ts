@@ -231,6 +231,22 @@ export async function payOrder(req: AuthRequest, res: Response) {
 
     await client.query('COMMIT');
 
+    // Mesa pasa a 'paid' — el mesero la libera cuando el cliente se vaya
+if (order.table_id) {
+  await pool.query(
+    `UPDATE tables SET status = 'paid' WHERE id = $1`,
+    [order.table_id]
+  );
+  broadcast({
+    type: 'table:status',
+    payload: {
+      tableId:     order.table_id,
+      status:      'paid',
+      orderStatus: 'completed',
+    },
+  });
+}
+
     // 7. Obtener items para el comprobante
     const itemsResult = await pool.query(
       `SELECT mi.name, oi.quantity, oi.price AS unit_price,
@@ -333,12 +349,12 @@ export async function releaseTable(req: AuthRequest, res: Response) {
 
     const table = tableResult.rows[0];
 
-    if (table.status !== 'waiting_bill') {
-      await client.query('ROLLBACK');
-      return res.status(400).json({
-        message: `La mesa debe estar en 'waiting_bill'. Estado actual: ${table.status}`,
-      });
-    }
+    if (!['waiting_bill', 'paid'].includes(table.status)) {
+  await client.query('ROLLBACK');
+  return res.status(400).json({
+    message: `La mesa debe estar en 'waiting_bill' o 'paid'. Estado actual: ${table.status}`,
+  });
+}
 
     // 2. Cerrar la orden activa en esta mesa (paid → completed)
     await client.query(

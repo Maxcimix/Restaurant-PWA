@@ -148,12 +148,11 @@ export default function BillGenerator({ table, onPaid, onClose }: Props) {
     setPayError(null);
     try {
       await payOrder(table.orderId, {
-        method:     (table.paymentMethod ?? 'efectivo') as CashierPaymentMethod,
-        amountPaid: esEfectivo ? montoParsed : bill.total,
-        tip:        0,
-      });
-      await releaseTable(table.tableId);
-      onPaid();
+  method:     (table.paymentMethod ?? 'efectivo') as CashierPaymentMethod,
+  amountPaid: esEfectivo ? montoParsed : bill.total,
+  tip:        0,
+});
+onPaid();
     } catch (e: unknown) {
       setPayError(e instanceof Error ? e.message : 'Error al procesar el pago');
       setPaying(false);
