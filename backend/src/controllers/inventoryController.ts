@@ -45,7 +45,7 @@ export async function getIngredients(req: AuthRequest, res: Response) {
       SELECT
         i.id, i.name, i.unit, i.stock_quantity, i.min_stock,
         i.cost_per_unit, i.supplier_id, i.is_active,
-        i.created_at, i.updated_at,
+        i.is_direct_product, i.created_at, i.updated_at,
         s.name AS supplier_name
       FROM ingredients i
       LEFT JOIN suppliers s ON i.supplier_id = s.id
@@ -55,14 +55,21 @@ export async function getIngredients(req: AuthRequest, res: Response) {
 
     const rows = result.rows.map((r) => ({
       ...r,
-      stock_quantity: parseFloat(r.stock_quantity),
-      min_stock:      parseFloat(r.min_stock),
-      cost_per_unit:  parseFloat(r.cost_per_unit),
-      status:         calcStockStatus(parseFloat(r.stock_quantity), parseFloat(r.min_stock)),
+      stock_quantity:    parseFloat(r.stock_quantity),
+      min_stock:         parseFloat(r.min_stock),
+      cost_per_unit:     parseFloat(r.cost_per_unit),
+      is_direct_product: r.is_direct_product ?? false,
+      status:            calcStockStatus(parseFloat(r.stock_quantity), parseFloat(r.min_stock)),
     }));
 
     // Filtro por status (calculado)
-    const filtered = status ? rows.filter((r) => r.status === String(status).toUpperCase()) : rows;
+    let filtered = status ? rows.filter((r) => r.status === String(status).toUpperCase()) : rows;
+
+    // El cocinero NO ve productos directos — solo materia prima que pasa por cocina
+    const userRole = req.user?.role;
+    if (userRole === 'cocina') {
+      filtered = filtered.filter((r) => !r.is_direct_product);
+    }
 
     return res.json(filtered);
   } catch (err) {
@@ -74,9 +81,10 @@ export async function getIngredients(req: AuthRequest, res: Response) {
 // ── POST /api/inventory/ingredients ─────────────────────────
 export async function createIngredient(req: AuthRequest, res: Response) {
   try {
-    const { name, unit, stock_quantity = 0, min_stock = 0, cost_per_unit = 0, supplier_id } = req.body as {
+    const { name, unit, stock_quantity = 0, min_stock = 0, cost_per_unit = 0, supplier_id, is_direct_product = false } = req.body as {
       name: string; unit: string; stock_quantity?: number;
       min_stock?: number; cost_per_unit?: number; supplier_id?: string;
+      is_direct_product?: boolean;
     };
 
     if (!name?.trim() || !unit?.trim()) {
@@ -87,9 +95,9 @@ export async function createIngredient(req: AuthRequest, res: Response) {
     }
 
     const result = await pool.query(`
-      INSERT INTO ingredients (name, unit, stock_quantity, min_stock, cost_per_unit, supplier_id)
-      VALUES ($1,$2,$3,$4,$5,$6) RETURNING *
-    `, [name.trim(), unit.trim(), stock_quantity, min_stock, cost_per_unit, supplier_id ?? null]);
+      INSERT INTO ingredients (name, unit, stock_quantity, min_stock, cost_per_unit, supplier_id, is_direct_product)
+      VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *
+    `, [name.trim(), unit.trim(), stock_quantity, min_stock, cost_per_unit, supplier_id ?? null, is_direct_product]);
 
     const r = result.rows[0];
 

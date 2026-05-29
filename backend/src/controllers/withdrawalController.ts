@@ -54,7 +54,7 @@ export async function createWithdrawal(req: AuthRequest, res: Response) {
 
       // Leer stock actual con lock
       const ingResult = await client.query(
-        `SELECT id, name, stock_quantity, min_stock, unit
+        `SELECT id, name, stock_quantity, min_stock, unit, is_direct_product
          FROM ingredients WHERE id=$1 AND is_active=true FOR UPDATE`,
         [item.ingredient_id]
       );
@@ -64,7 +64,15 @@ export async function createWithdrawal(req: AuthRequest, res: Response) {
         return res.status(404).json({ message: `Ingrediente ${item.ingredient_id} no encontrado` });
       }
 
-      const ing      = ingResult.rows[0];
+      const ing = ingResult.rows[0];
+
+      // Producto directo → el cocinero NO puede retirarlo a su bodega
+      if (ing.is_direct_product) {
+        await client.query('ROLLBACK');
+        return res.status(403).json({
+          message: `"${ing.name}" es un producto directo y no puede retirarse a la bodega de turno. Se descuenta automáticamente al recibir pedidos.`,
+        });
+      }
       const curStock = parseFloat(ing.stock_quantity);
 
       if (curStock < item.quantity_withdrawn) {

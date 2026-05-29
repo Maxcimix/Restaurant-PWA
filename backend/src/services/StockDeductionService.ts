@@ -51,7 +51,8 @@ export class StockDeductionService {
       // Obtener receta
       const recipeR = await client.query(
         `SELECT mii.ingredient_id, mii.quantity_required,
-                i.name AS ingredient_name, i.unit
+                i.name AS ingredient_name, i.unit,
+                COALESCE(i.is_direct_product, false) AS is_direct_product
          FROM menu_item_ingredients mii
          JOIN ingredients i ON i.id = mii.ingredient_id
          WHERE mii.menu_item_id = $1`,
@@ -60,16 +61,22 @@ export class StockDeductionService {
 
       if (recipeR.rows.length === 0) continue; // sin receta, nada que descontar
 
-      if (skipKitchen) {
-        // ── Descuento de BODEGA PRINCIPAL ──────────────────
-        await this.deductFromMainStock(
-          recipeR.rows, item, userId, client, newlyOutOfStock
-        );
-      } else {
-        // ── Descuento de BODEGA COCINA ─────────────────────
-        await this.deductFromKitchenStock(
-          recipeR.rows, item, userId, client, newlyOutOfStock
-        );
+      // Separar ingredientes: directos → bodega principal; resto según skip_kitchen
+      const directIngrs  = recipeR.rows.filter((r: { is_direct_product: boolean }) => r.is_direct_product);
+      const kitchenIngrs = recipeR.rows.filter((r: { is_direct_product: boolean }) => !r.is_direct_product);
+
+      // Ingredientes directos siempre se descuentan de bodega principal
+      if (directIngrs.length > 0) {
+        await this.deductFromMainStock(directIngrs, item, userId, client, newlyOutOfStock);
+      }
+
+      // Ingredientes de cocina según skip_kitchen del ítem
+      if (kitchenIngrs.length > 0) {
+        if (skipKitchen) {
+          await this.deductFromMainStock(kitchenIngrs, item, userId, client, newlyOutOfStock);
+        } else {
+          await this.deductFromKitchenStock(kitchenIngrs, item, userId, client, newlyOutOfStock);
+        }
       }
     }
 
