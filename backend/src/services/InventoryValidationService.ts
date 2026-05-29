@@ -84,7 +84,9 @@ export class InventoryValidationService {
 
     // 2. Obtener receta del ítem
     const recipeR = await client.query(
-      `SELECT mii.ingredient_id, mii.quantity_required, i.name AS ingredient_name, i.unit
+      `SELECT mii.ingredient_id, mii.quantity_required,
+              i.name AS ingredient_name, i.unit,
+              COALESCE(i.is_direct_product, false) AS is_direct_product
        FROM menu_item_ingredients mii
        JOIN ingredients i ON i.id = mii.ingredient_id
        WHERE mii.menu_item_id = $1`,
@@ -98,13 +100,23 @@ export class InventoryValidationService {
       return { valid: true, itemName: mi.name, reason: '' };
     }
 
-    // 4. Producto directo (skip_kitchen=true) → verificar BODEGA PRINCIPAL
-    if (mi.skip_kitchen) {
-      return await this.validateAgainstMainStock(mi.name, recipeR.rows, item.quantity, client);
+    // 4. Separar ingredientes por tipo: directos → bodega principal, resto → bodega cocina
+    const directIngredients  = recipeR.rows.filter((r) => r.is_direct_product);
+    const kitchenIngredients = recipeR.rows.filter((r) => !r.is_direct_product);
+
+    // Validar ingredientes directos contra bodega principal
+    if (directIngredients.length > 0) {
+      const r = await this.validateAgainstMainStock(mi.name, directIngredients, item.quantity, client);
+      if (!r.valid) return r;
+    }
+
+    // Si es skip_kitchen o solo tiene ingredientes directos → no valida cocina
+    if (mi.skip_kitchen || kitchenIngredients.length === 0) {
+      return { valid: true, itemName: mi.name, reason: '' };
     }
 
     // 5. Plato preparado (skip_kitchen=false) → verificar BODEGA COCINA
-    return await this.validateAgainstKitchenStock(mi.name, recipeR.rows, item.quantity, client);
+    return await this.validateAgainstKitchenStock(mi.name, kitchenIngredients, item.quantity, client);
   }
 
   // ── Verifica contra bodega principal (ingredients.stock_quantity) ──
@@ -210,7 +222,8 @@ export class InventoryValidationService {
     // Recetas de todos los items
     const recipesR = await client.query(
       `SELECT mii.menu_item_id, mii.ingredient_id, mii.quantity_required,
-              i.name AS ingredient_name, i.unit
+              i.name AS ingredient_name, i.unit,
+              COALESCE(i.is_direct_product, false) AS is_direct_product
        FROM menu_item_ingredients mii
        JOIN ingredients i ON i.id = mii.ingredient_id`
     );
@@ -239,18 +252,20 @@ export class InventoryValidationService {
         continue;
       }
 
-      // Verificar cada ingrediente
+      // Verificar cada ingrediente usando su propia bodega
       let available = true;
       let reason    = '';
-      const stockMap = mi.skip_kitchen ? mainStock : kitchenStock;
 
       for (const ri of recipe) {
-        const needed    = parseFloat(ri.quantity_required);
-        const inStock   = stockMap.get(ri.ingredient_id) ?? 0;
+        const needed = parseFloat(ri.quantity_required);
+        // Producto directo → siempre bodega principal; plato preparado → bodega cocina
+        const inStock = ri.is_direct_product
+          ? (mainStock.get(ri.ingredient_id) ?? 0)
+          : (mi.skip_kitchen ? mainStock.get(ri.ingredient_id) ?? 0 : kitchenStock.get(ri.ingredient_id) ?? 0);
 
         if (inStock < needed) {
           available = false;
-          reason    = `Sin "${ri.ingredient_name}" en ${mi.skip_kitchen ? 'bodega' : 'cocina'}`;
+          reason    = `Sin "${ri.ingredient_name}" en ${ri.is_direct_product ? 'bodega principal' : 'cocina'}`;
           break;
         }
       }
