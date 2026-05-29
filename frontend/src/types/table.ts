@@ -14,7 +14,7 @@ export type TableStatus =
   | 'occupied'     // Con clientes y orden activa
   | 'reserved'     // Reservada (sin clientes aún)
   | 'waiting_bill' // Clientes esperando la cuenta
-
+  | 'paid';
 /** Mesa enriquecida con datos de la orden activa (JOIN en backend) */
 export interface Table {
   id:              string;

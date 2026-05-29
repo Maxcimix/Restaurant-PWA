@@ -28,10 +28,11 @@ import { getTables, markAsDelivered } from '../../services/waiterService';
 const TABLE_STATUS_CONFIG: Record<TableStatus, {
   label: string; cardClass: string; dotClass: string;
 }> = {
-  available:    { label: 'Libre',             cardClass: 'tc-available', dotClass: 'dot-green'  },
-  occupied:     { label: 'Ocupada',           cardClass: 'tc-occupied',  dotClass: 'dot-orange' },
-  reserved:     { label: 'Reservada',         cardClass: 'tc-reserved',  dotClass: 'dot-blue'   },
-  waiting_bill: { label: 'Esperando cobro',   cardClass: 'tc-waiting',   dotClass: 'dot-yellow' },
+  available:    { label: 'Libre',           cardClass: 'tc-available', dotClass: 'dot-green'  },
+  occupied:     { label: 'Ocupada',         cardClass: 'tc-occupied',  dotClass: 'dot-orange' },
+  reserved:     { label: 'Reservada',       cardClass: 'tc-reserved',  dotClass: 'dot-blue'   },
+  waiting_bill: { label: 'Esperando cobro', cardClass: 'tc-waiting',   dotClass: 'dot-yellow' },
+  paid:         { label: 'Cobrado',         cardClass: 'tc-paid',      dotClass: 'dot-green'  },
 };
  
 // ── Componente tarjeta de mesa ───────────────────────────────
@@ -48,10 +49,11 @@ interface TableCardProps {
   onRequestBill:   (table: Table) => void;
   onViewDetail:    (table: Table) => void;
   onModifyOrder:   (table: Table) => void;  // NUEVO: modificar orden pendiente
+  onReleaseTable: (table: Table) => void;
 }
  
 const TableCard = memo(function TableCard({
-  table, onTakeOrder, onDeliver, onRequestBill, onViewDetail, onModifyOrder,
+  table, onTakeOrder, onDeliver, onRequestBill, onViewDetail, onModifyOrder, onReleaseTable,
 }: TableCardProps) {
   const cfg          = TABLE_STATUS_CONFIG[table.status];
   const isAvailable  = table.status === 'available';
@@ -216,6 +218,19 @@ const TableCard = memo(function TableCard({
             <span>Cuenta enviada — esperando cobro de caja</span>
           </div>
         )}
+        {table.status === 'paid' && (
+  <button
+    type="button"
+    className="tc-btn tc-btn-primary"
+    onClick={() => onReleaseTable(table)}
+    aria-label={`Liberar mesa ${table.number}`}
+  >
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <path d="M2 7.5l4 4 7-7" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+    </svg>
+    Liberar mesa
+  </button>
+)}
       </div>
     </article>
   );
@@ -282,6 +297,18 @@ export default function TableDashboard() {
     setBillModal(null);
     getTables().then(setTables).catch(() => {});
   }, [setTables]);
+
+  const handleReleaseTable = useCallback(async (table: Table) => {
+  try {
+    await fetch(`/api/cashier/tables/${table.id}/release-waiter`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    getTables().then(setTables).catch(() => {});
+  } catch (e) {
+    console.error('Error al liberar mesa:', e);
+  }
+}, [token, setTables]);
  
   // Stats
   const stats = {
@@ -401,6 +428,7 @@ export default function TableDashboard() {
               onRequestBill={(t) => setBillModal(t)}
               onViewDetail={handleViewDetail}
               onModifyOrder={handleModifyOrder}
+              onReleaseTable={handleReleaseTable}
             />
           ))}
         </main>
