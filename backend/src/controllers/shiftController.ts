@@ -16,6 +16,7 @@ import { Response }         from 'express';
 import pool                 from '../utils/db';
 import { broadcast }        from '../websocket/handlers';
 import type { AuthRequest } from '../middleware/auth';
+import { StockDeductionService } from '../services/StockDeductionService';
 
 // ── Calcular estado del mini-inventario por ingrediente ──────
 function calcMiniStatus(remaining: number, withdrawn: number): string {
@@ -181,6 +182,9 @@ export async function restockWithdrawal(req: AuthRequest, res: Response) {
           (ingredient_id, type, quantity, stock_after, user_id, shift_withdrawal_id, notes)
         VALUES ($1,'salida',$2,$3,$4,$5,'Reabastecimiento parcial de turno')
       `, [item.ingredient_id, -item.quantity, newBodegaStock, req.user?.id, id]);
+
+      // Reactivar platillos que quedaron agotados y ahora tienen stock suficiente
+      await StockDeductionService.reactivateItemsIfStockSufficient(item.ingredient_id, client);
 
       updatedItems.push({
         ingredient_id:      item.ingredient_id,

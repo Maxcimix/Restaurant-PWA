@@ -1,11 +1,4 @@
 // ============================================================
-// backend/src/controllers/adminController.ts  —  Fase 8
-//
-// Controladores del Admin Dashboard.
-// Todos requieren rol 'admin' (verificado en la ruta).
-// ============================================================
-
-// ============================================================
 // backend/src/controllers/adminController.ts  —  Fase 8 + Fase 11
 // ============================================================
 
@@ -13,6 +6,16 @@ import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import pool from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';
+import redis from '../utils/redis';
+
+// ── Helper: limpiar caché del menú ──────────────────────────
+async function clearMenuCache() {
+  try {
+    await redis.del('menu:categories');
+    const keys = await redis.keys('menu:items:*');
+    if (keys.length > 0) await redis.del(keys);
+  } catch { /* Redis no es crítico */ }
+}
 
 // ── GET /api/admin/stats ─────────────────────────────────────
 export async function getStats(_req: Request, res: Response) {
@@ -242,6 +245,7 @@ export async function createCategory(req: Request, res: Response) {
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
       [name, description ?? null, icon ?? null, position ?? 99, is_active ?? true, skip_kitchen ?? false]
     );
+    await clearMenuCache();
     return res.status(201).json({ ...result.rows[0], items_count: 0 });
   } catch (err) {
     console.error('[admin/categories/create]', err);
@@ -263,6 +267,7 @@ export async function updateCategory(req: Request, res: Response) {
     if (!result.rows[0]) return res.status(404).json({ message: 'Categoría no encontrada' });
 
     const countR = await pool.query('SELECT COUNT(*) FROM menu_items WHERE category_id=$1', [id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], items_count: parseInt(countR.rows[0].count) });
   } catch (err) {
     console.error('[admin/categories/update]', err);
@@ -278,6 +283,7 @@ export async function deleteCategory(req: Request, res: Response) {
       return res.status(400).json({ message: 'No se puede eliminar: tiene ítems asociados. Elimínalos primero.' });
     }
     await pool.query('DELETE FROM menu_categories WHERE id=$1', [id]);
+    await clearMenuCache();
     return res.status(204).send();
   } catch (err) {
     console.error('[admin/categories/delete]', err);
@@ -319,6 +325,7 @@ export async function createMenuItem(req: Request, res: Response) {
       [category_id, name, description ?? null, price, preparation_time ?? 10, is_available ?? true, is_out_of_stock ?? false, image_url ?? null]
     );
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
+    await clearMenuCache();
     return res.status(201).json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: 0 });
   } catch (err) {
     console.error('[admin/items/create]', err);
@@ -341,6 +348,7 @@ export async function updateMenuItem(req: Request, res: Response) {
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
     const countR = await pool.query('SELECT COUNT(*) FROM order_items WHERE menu_item_id=$1', [id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: parseInt(countR.rows[0].count) });
   } catch (err) {
     console.error('[admin/items/update]', err);
@@ -351,6 +359,7 @@ export async function updateMenuItem(req: Request, res: Response) {
 export async function deleteMenuItem(req: Request, res: Response) {
   try {
     await pool.query('DELETE FROM menu_items WHERE id=$1', [req.params.id]);
+    await clearMenuCache();
     return res.status(204).send();
   } catch (err) {
     console.error('[admin/items/delete]', err);
@@ -368,6 +377,7 @@ export async function toggleItemAvailability(req: Request, res: Response) {
     );
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [result.rows[0].category_id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], category_name: catR.rows[0]?.name });
   } catch (err) {
     console.error('[admin/items/toggle]', err);

@@ -44,6 +44,7 @@ export interface Ingredient {
   status:         StockStatus;  // calculado en backend
   created_at:     string;
   updated_at:     string;
+  is_direct_product: boolean;
 }
 
 export interface IngredientForm {
@@ -54,6 +55,7 @@ export interface IngredientForm {
   cost_per_unit: number;
   supplier_id:   string;
   is_active:     boolean;
+  is_direct_product: boolean;
 }
 
 // ── Movimientos de bodega ────────────────────────────────────

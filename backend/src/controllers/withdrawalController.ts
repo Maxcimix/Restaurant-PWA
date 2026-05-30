@@ -8,6 +8,7 @@
 import { Response }    from 'express';
 import pool            from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';
+import { StockDeductionService } from '../services/StockDeductionService';
 
 // ── POST /api/inventory/withdrawals ──────────────────────────
 export async function createWithdrawal(req: AuthRequest, res: Response) {
@@ -95,7 +96,7 @@ export async function createWithdrawal(req: AuthRequest, res: Response) {
         INSERT INTO shift_withdrawal_items
           (shift_withdrawal_id, ingredient_id, quantity_withdrawn, quantity_remaining)
         VALUES ($1,$2,$3,$4)
-      `, [withdrawalId, item.ingredient_id, item.quantity_withdrawn, newStock]);
+      `, [withdrawalId, item.ingredient_id, item.quantity_withdrawn, item.quantity_withdrawn]);
 
       // Registrar movimiento de salida
       await client.query(`
@@ -103,6 +104,9 @@ export async function createWithdrawal(req: AuthRequest, res: Response) {
           (ingredient_id, type, quantity, stock_after, user_id, shift_withdrawal_id, notes)
         VALUES ($1,'salida',$2,$3,$4,$5,'Retiro de turno')
       `, [item.ingredient_id, -item.quantity_withdrawn, newStock, cookId, withdrawalId]);
+
+      // Reactivar platillos que quedaron agotados y ahora tienen stock suficiente
+      await StockDeductionService.reactivateItemsIfStockSufficient(item.ingredient_id, client);
 
       // Si stock llegó a 0, marcar platillos relacionados como no disponibles
       if (newStock <= 0) {
