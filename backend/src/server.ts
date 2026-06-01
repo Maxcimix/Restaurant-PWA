@@ -7,6 +7,7 @@ import express          from 'express';
 import cors             from 'cors';
 import { createServer } from 'http';
 import dotenv           from 'dotenv';
+import path             from 'path';
 
 import authRoutes      from './routes/auth';
 import menuRoutes      from './routes/menu';
@@ -46,6 +47,9 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
+
+// Servir imágenes subidas localmente (fallback cuando Cloudinary no está configurado)
+app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
 
 app.use('/api/auth',      authRoutes);
 app.use('/api/menu',      menuRoutes);

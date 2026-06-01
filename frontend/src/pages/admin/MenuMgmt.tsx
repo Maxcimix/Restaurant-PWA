@@ -92,6 +92,7 @@ export default function MenuMgmt() {
   const [saving, setSaving]         = useState(false);
   const [uploading, setUploading]   = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadError, setUploadError]   = useState<string | null>(null);
   const [confirm, setConfirm]       = useState<{ type: 'cat' | 'item'; id: string; name: string } | null>(null);
 
   useEffect(() => {
@@ -151,7 +152,7 @@ export default function MenuMgmt() {
         const created = await createMenuItem(itemForm);
         setItems([...items, created]);
       }
-      setItemForm(null); setEditItemId(null); setImagePreview(null);
+      setItemForm(null); setEditItemId(null); setImagePreview(null); setUploadError(null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar');
     } finally { setSaving(false); }
@@ -181,6 +182,7 @@ export default function MenuMgmt() {
     const file = e.target.files?.[0];
     if (!file) return;
     setUploading(true);
+    setUploadError(null);
     try {
       const formData = new FormData();
       formData.append('image', file);
@@ -190,11 +192,14 @@ export default function MenuMgmt() {
         headers: { Authorization: `Bearer ${token ?? ''}` },
         body: formData,
       });
-      const data = await res.json() as { url: string };
-      setItemForm((prev) => prev ? { ...prev, image_url: data.url } : prev);
-      setImagePreview(data.url);
-    } catch {
-      setError('Error al subir la imagen');
+      const data = await res.json() as { url?: string; message?: string };
+      if (!res.ok) throw new Error(data.message ?? 'Error al subir la imagen');
+      setItemForm((prev) => prev ? { ...prev, image_url: data.url! } : prev);
+      setImagePreview(data.url!);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Error al subir la imagen';
+      setUploadError(msg);
+      setError(msg);
     } finally { setUploading(false); }
   }
 
@@ -420,6 +425,15 @@ export default function MenuMgmt() {
                         </button>
                       )}
                     </div>
+                    {uploadError && (
+                      <p style={{
+                        marginTop: 8, fontSize: 13, color: '#dc2626',
+                        background: '#fef2f2', border: '1px solid #fecaca',
+                        borderRadius: 6, padding: '6px 10px',
+                      }}>
+                        ⚠️ {uploadError}
+                      </p>
+                    )}
                   </div>
 
                   <div className="admin-field admin-field--toggle">
@@ -436,7 +450,7 @@ export default function MenuMgmt() {
                   </div>
                 </div>
                 <div className="admin-form-actions">
-                  <button className="admin-btn-ghost" onClick={() => { setItemForm(null); setEditItemId(null); setImagePreview(null); }}>Cancelar</button>
+                  <button className="admin-btn-ghost" onClick={() => { setItemForm(null); setEditItemId(null); setImagePreview(null); setUploadError(null); }}>Cancelar</button>
                   <button className="admin-btn-primary" onClick={handleSaveItem}
                     disabled={!itemForm.name || !itemForm.category_id || itemForm.price <= 0 || saving || uploading}>
                     {saving ? 'Guardando...' : 'Guardar'}
