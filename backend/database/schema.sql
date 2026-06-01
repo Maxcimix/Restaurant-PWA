@@ -37,7 +37,7 @@ CREATE TABLE tables (
   capacity   INTEGER NOT NULL,
   section    VARCHAR(50),
   status     VARCHAR(20) DEFAULT 'available'
-               CHECK (status IN ('available','occupied','reserved','waiting_bill')),
+               CHECK (status IN ('available','occupied','reserved','waiting_bill','paid')),
   qr_code    TEXT UNIQUE,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -165,17 +165,19 @@ CREATE TABLE IF NOT EXISTS suppliers (
 
 -- ── F9: Ingredientes ─────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS ingredients (
-  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  name           VARCHAR(150) NOT NULL UNIQUE,
-  unit           VARCHAR(30)  NOT NULL,
-  stock_quantity DECIMAL(12,3) NOT NULL DEFAULT 0,
-  min_stock      DECIMAL(12,3) NOT NULL DEFAULT 0,
-  cost_per_unit  DECIMAL(10,2) NOT NULL DEFAULT 0,
-  supplier_id    UUID REFERENCES suppliers(id) ON DELETE SET NULL,
-  is_active      BOOLEAN DEFAULT TRUE,
-  created_at     TIMESTAMP DEFAULT NOW(),
-  updated_at     TIMESTAMP DEFAULT NOW()
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  name              VARCHAR(150) NOT NULL UNIQUE,
+  unit              VARCHAR(30)  NOT NULL,
+  stock_quantity    DECIMAL(12,3) NOT NULL DEFAULT 0,
+  min_stock         DECIMAL(12,3) NOT NULL DEFAULT 0,
+  cost_per_unit     DECIMAL(10,2) NOT NULL DEFAULT 0,
+  supplier_id       UUID REFERENCES suppliers(id) ON DELETE SET NULL,
+  is_active         BOOLEAN DEFAULT TRUE,
+  is_direct_product BOOLEAN DEFAULT FALSE,
+  created_at        TIMESTAMP DEFAULT NOW(),
+  updated_at        TIMESTAMP DEFAULT NOW()
 );
+
 
 -- ── F9: Recetas ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS menu_item_ingredients (

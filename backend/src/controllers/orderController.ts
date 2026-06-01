@@ -830,7 +830,117 @@ export async function modifyOrder(req: Request, res: Response) {
       }
     }
 
-    // Eliminar items actuales de la orden
+    // ── Capturar items actuales ANTES de borrarlos (para ajuste de stock) ─────
+    const prevItemsR = await client.query(
+      `SELECT oi.menu_item_id, oi.quantity, oi.id AS order_item_id
+       FROM order_items oi WHERE oi.order_id = $1`,
+      [id]
+    );
+    const prevMap = new Map<string, { quantity: number; order_item_id: string }>();
+    for (const r of prevItemsR.rows) {
+      prevMap.set(r.menu_item_id, { quantity: r.quantity, order_item_id: r.order_item_id });
+    }
+
+    // Construir mapa de nuevas cantidades
+    const newMap = new Map<string, number>();
+    for (const item of items) newMap.set(item.menu_item_id, item.quantity);
+
+    // ── AJUSTE DE STOCK ─────────────────────────────────────────────────────
+    const userId = (req as Request & { user?: { id: string } }).user?.id ?? null;
+
+    // 1. Items que BAJAN de cantidad o desaparecen → devolver diferencia al stock
+    for (const [menuItemId, prev] of prevMap.entries()) {
+      const newQty = newMap.get(menuItemId) ?? 0;
+      const diff   = prev.quantity - newQty; // positivo = se redujo
+      if (diff <= 0) continue;
+
+      // Obtener receta y skip_kitchen
+      const miR = await client.query(
+        `SELECT COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+         FROM menu_items mi
+         LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+         WHERE mi.id = $1`,
+        [menuItemId]
+      );
+      const skipKitchen: boolean = miR.rows[0]?.skip_kitchen ?? false;
+
+      const recipeR = await client.query(
+        `SELECT mii.ingredient_id, mii.quantity_required,
+                i.name AS ingredient_name, i.unit,
+                COALESCE(i.is_direct_product, false) AS is_direct_product
+         FROM menu_item_ingredients mii
+         JOIN ingredients i ON i.id = mii.ingredient_id
+         WHERE mii.menu_item_id = $1`,
+        [menuItemId]
+      );
+
+      for (const ri of recipeR.rows) {
+        const toReturn = parseFloat(ri.quantity_required) * diff;
+
+        if (ri.is_direct_product || skipKitchen) {
+          // Devolver a bodega principal
+          const updR = await client.query(
+            `UPDATE ingredients SET stock_quantity = stock_quantity + $1, updated_at = NOW()
+             WHERE id = $2 RETURNING stock_quantity`,
+            [toReturn, ri.ingredient_id]
+          );
+          const newStock = parseFloat(updR.rows[0]?.stock_quantity ?? '0');
+          await client.query(
+            `INSERT INTO inventory_movements
+               (ingredient_id, type, quantity, stock_after, user_id, order_item_id, notes)
+             VALUES ($1,'entrada',$2,$3,$4,$5,$6)`,
+            [ri.ingredient_id, toReturn, newStock, userId, prev.order_item_id,
+             `Devolución por modificación de orden #${order.order_number}`]
+          );
+        } else {
+          // Devolver a bodega cocina (turno abierto más reciente)
+          const shiftR = await client.query(
+            `SELECT swi.id AS swi_id, swi.quantity_remaining
+             FROM shift_withdrawal_items swi
+             JOIN shift_withdrawals sw ON sw.id = swi.shift_withdrawal_id
+             WHERE sw.status = 'abierto' AND swi.ingredient_id = $1
+             ORDER BY sw.started_at DESC LIMIT 1 FOR UPDATE`,
+            [ri.ingredient_id]
+          );
+          if (shiftR.rows[0]) {
+            const newRemaining = parseFloat(
+              (parseFloat(shiftR.rows[0].quantity_remaining) + toReturn).toFixed(3)
+            );
+            await client.query(
+              `UPDATE shift_withdrawal_items SET quantity_remaining=$1 WHERE id=$2`,
+              [newRemaining, shiftR.rows[0].swi_id]
+            );
+            await client.query(
+              `INSERT INTO inventory_movements
+                 (ingredient_id, type, quantity, stock_after, user_id, order_item_id, notes)
+               VALUES ($1,'entrada',$2,$3,$4,$5,$6)`,
+              [ri.ingredient_id, toReturn, newRemaining, userId, prev.order_item_id,
+               `Devolución a cocina por modificación de orden #${order.order_number}`]
+            );
+            // Reactivar platillos si el stock ahora es suficiente
+            await StockDeductionService.reactivateItemsIfStockSufficient(ri.ingredient_id, client);
+          }
+        }
+      }
+    }
+
+    // 2. Items que SUBEN de cantidad o son nuevos → descontar diferencia
+    const deductionItems: Array<{
+      menu_item_id: string; menu_item_name: string; quantity: number; order_item_id: string;
+    }> = [];
+    for (const item of items) {
+      const prevQty = prevMap.get(item.menu_item_id)?.quantity ?? 0;
+      const diff    = item.quantity - prevQty; // positivo = aumentó
+      if (diff <= 0) continue;
+      deductionItems.push({
+        menu_item_id:   item.menu_item_id,
+        menu_item_name: menuMap.get(item.menu_item_id)!.name as string,
+        quantity:       diff,
+        order_item_id:  prevMap.get(item.menu_item_id)?.order_item_id ?? '',
+      });
+    }
+
+    // ── Eliminar items actuales y reinsertar ────────────────────────────────
     await client.query(`DELETE FROM order_items WHERE order_id = $1`, [id]);
 
     // Obtener tasa de IVA desde configuración (no hardcodeado)
@@ -855,15 +965,34 @@ export async function modifyOrder(req: Request, res: Response) {
       [subtotal.toFixed(2), tax.toFixed(2), total.toFixed(2), id]
     );
 
-    // Insertar nuevos items
+    // Insertar nuevos items y recopilar sus IDs para el descuento
+    const newOrderItemIds: Record<string, string> = {};
     for (const item of items) {
-      const mi = menuMap.get(item.menu_item_id)!;
-      await client.query(
+      const mi  = menuMap.get(item.menu_item_id)!;
+      const oiR = await client.query(
         `INSERT INTO order_items
            (order_id, menu_item_id, quantity, price, special_instructions, status)
-         VALUES ($1,$2,$3,$4,$5,'pending')`,
+         VALUES ($1,$2,$3,$4,$5,'pending')
+         RETURNING id`,
         [id, item.menu_item_id, item.quantity, mi.price, item.special_instructions ?? null]
       );
+      newOrderItemIds[item.menu_item_id] = oiR.rows[0].id as string;
+    }
+
+    // Asignar order_item_id correcto a los items que necesitan descuento adicional
+    for (const d of deductionItems) {
+      d.order_item_id = newOrderItemIds[d.menu_item_id] ?? d.order_item_id;
+    }
+
+    // Descontar el incremento de stock
+    if (deductionItems.length > 0) {
+      const deduction = await StockDeductionService.deductStockForOrder(
+        deductionItems, userId, client
+      );
+      if (deduction.newlyOutOfStock.length > 0) {
+        // Se notifica después del COMMIT
+        setTimeout(() => StockDeductionService.broadcastOutOfStock(deduction.newlyOutOfStock), 0);
+      }
     }
 
     await client.query(

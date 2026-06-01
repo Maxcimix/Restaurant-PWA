@@ -9,9 +9,9 @@
 // ============================================================
 import { Factory, ClipboardList, History, Package, Settings2, AlertTriangle, CheckCircle } from 'lucide-react';
 import { useEffect, useState, useCallback } from 'react';
-import { useNavigate }         from 'react-router-dom';
-import AdminLayout             from '../../components/admin/AdminLayout';
-import { useInventoryStore }   from '../../store/inventoryStore';
+import { useNavigate } from 'react-router-dom';
+import AdminLayout from '../../components/admin/AdminLayout';
+import { useInventoryStore } from '../../store/inventoryStore';
 import {
   getIngredients, createIngredient, updateIngredient,
   deleteIngredient, registerEntry, registerAdjustment,
@@ -25,7 +25,7 @@ const UNITS = ['kg', 'g', 'l', 'ml', 'und', 'porciones', 'litros', 'bolsas', 'ca
 
 const EMPTY_ING: IngredientForm = {
   name: '', unit: 'kg', stock_quantity: 0, min_stock: 0,
-  cost_per_unit: 0, supplier_id: '', is_active: true,
+  cost_per_unit: 0, supplier_id: '', is_active: true, is_direct_product: false,
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -33,7 +33,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 function StockBadge({ status }: { status: string }) {
-  const cls = { OK:'ok', BAJO:'bajo', CRITICO:'crit', AGOTADO:'oot' }[status] ?? 'oot';
+  const cls = { OK: 'ok', BAJO: 'bajo', CRITICO: 'crit', AGOTADO: 'oot' }[status] ?? 'oot';
   return <span className={`stock-badge stock-badge--${cls}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
@@ -46,12 +46,12 @@ export default function InventoryDashboard() {
   } = useInventoryStore();
 
   // ── Modales ──────────────────────────────────────────────
-  const [ingForm,    setIngForm]    = useState<IngredientForm | null>(null);
-  const [editIngId,  setEditIngId]  = useState<string | null>(null);
-  const [entryForm,  setEntryForm]  = useState<StockEntryForm | null>(null);
-  const [adjForm,    setAdjForm]    = useState<StockAdjustmentForm | null>(null);
-  const [saving,     setSaving]     = useState(false);
-  const [search,     setSearch]     = useState('');
+  const [ingForm, setIngForm] = useState<IngredientForm | null>(null);
+  const [editIngId, setEditIngId] = useState<string | null>(null);
+  const [entryForm, setEntryForm] = useState<StockEntryForm | null>(null);
+  const [adjForm, setAdjForm] = useState<StockAdjustmentForm | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
   // FIX: feedback de éxito
@@ -67,8 +67,8 @@ export default function InventoryDashboard() {
     getIngredients({ search: search || undefined, status: filterStatus || undefined })
       .then(setIngredients)
       .catch((e: Error) => setError(e.message));
-    getSuppliers().then(setSuppliers).catch(() => {});
-    getLowStock().then(setLowStock).catch(() => {});
+    getSuppliers().then(setSuppliers).catch(() => { });
+    getLowStock().then(setLowStock).catch(() => { });
   }, [search, filterStatus]); // eslint-disable-line
 
   useEffect(() => { load(); }, [load]);
@@ -138,8 +138,8 @@ export default function InventoryDashboard() {
 
   // ── KPIs ─────────────────────────────────────────────────
   const totalActivos = ingredients.filter((i) => i.is_active).length;
-  const totalBajo    = ingredients.filter((i) => i.status === 'BAJO' || i.status === 'CRITICO' || i.status === 'AGOTADO').length;
-  const valorEst     = ingredients.reduce((s, i) => s + i.stock_quantity * i.cost_per_unit, 0);
+  const totalBajo = ingredients.filter((i) => i.status === 'BAJO' || i.status === 'CRITICO' || i.status === 'AGOTADO').length;
+  const valorEst = ingredients.reduce((s, i) => s + i.stock_quantity * i.cost_per_unit, 0);
 
   return (
     <AdminLayout>
@@ -169,13 +169,13 @@ export default function InventoryDashboard() {
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button className="admin-btn-ghost" onClick={() => navigate('/admin/proveedores')}>
-              <Factory size={14}/> Proveedores
+              <Factory size={14} /> Proveedores
             </button>
             <button className="admin-btn-ghost" onClick={() => navigate('/admin/recetas')}>
-              <ClipboardList size={14}/> Recetas
+              <ClipboardList size={14} /> Recetas
             </button>
             <button className="admin-btn-ghost" onClick={() => navigate('/admin/inventario/movimientos')}>
-              <History size={14}/> Historial
+              <History size={14} /> Historial
             </button>
             <button className="admin-btn-teal" onClick={() => { setIngForm(EMPTY_ING); setEditIngId(null); }}>
               + Ingrediente
@@ -186,7 +186,7 @@ export default function InventoryDashboard() {
         {/* Banner alertas */}
         {lowStockCount > 0 && (
           <div className="low-stock-banner">
-            <AlertTriangle size={14}/>
+            <AlertTriangle size={14} />
             <span className="lsb-text">
               {totalBajo} ingrediente{totalBajo > 1 ? 's' : ''} con stock bajo o crítico
             </span>
@@ -214,11 +214,11 @@ export default function InventoryDashboard() {
         <div className="inv-filters">
           <div className="admin-search-wrap" style={{ flex: 1, maxWidth: 320 }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.2" />
+              <path d="M9 9l3 3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
             </svg>
             <input className="admin-search" placeholder="Buscar ingrediente..." value={search}
-              onChange={(e) => setSearch(e.target.value)}/>
+              onChange={(e) => setSearch(e.target.value)} />
           </div>
           <select className="admin-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="">Todos los estados</option>
@@ -232,7 +232,7 @@ export default function InventoryDashboard() {
 
         {/* Tabla */}
         {ingLoading ? (
-          <div className="admin-loading"><div className="inv-spinner"/><p>Cargando bodega...</p></div>
+          <div className="admin-loading"><div className="inv-spinner" /><p>Cargando bodega...</p></div>
         ) : (
           <div className="inv-table-wrap">
             <table className="inv-table">
@@ -275,6 +275,7 @@ export default function InventoryDashboard() {
                             name: ing.name, unit: ing.unit, stock_quantity: ing.stock_quantity,
                             min_stock: ing.min_stock, cost_per_unit: ing.cost_per_unit,
                             supplier_id: ing.supplier_id ?? '', is_active: ing.is_active,
+                            is_direct_product: ing.is_direct_product ?? false,
                           });
                           setEditIngId(ing.id);
                         }}>Editar</button>
@@ -303,7 +304,7 @@ export default function InventoryDashboard() {
                   <label>Nombre *</label>
                   <input className="admin-input" value={ingForm.name}
                     onChange={(e) => setIngForm({ ...ingForm, name: e.target.value })}
-                    placeholder="Ej: Carne molida"/>
+                    placeholder="Ej: Carne molida" />
                 </div>
                 <div className="admin-field">
                   <label>Unidad *</label>
@@ -316,19 +317,19 @@ export default function InventoryDashboard() {
                   <label>Stock inicial</label>
                   <input className="admin-input" type="number" min="0" step="0.001"
                     value={ingForm.stock_quantity}
-                    onChange={(e) => setIngForm({ ...ingForm, stock_quantity: parseFloat(e.target.value) || 0 })}/>
+                    onChange={(e) => setIngForm({ ...ingForm, stock_quantity: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div className="admin-field">
                   <label>Stock mínimo *</label>
                   <input className="admin-input" type="number" min="0" step="0.001"
                     value={ingForm.min_stock}
-                    onChange={(e) => setIngForm({ ...ingForm, min_stock: parseFloat(e.target.value) || 0 })}/>
+                    onChange={(e) => setIngForm({ ...ingForm, min_stock: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div className="admin-field">
                   <label>Costo por unidad ($)</label>
                   <input className="admin-input" type="number" min="0" step="0.01"
                     value={ingForm.cost_per_unit}
-                    onChange={(e) => setIngForm({ ...ingForm, cost_per_unit: parseFloat(e.target.value) || 0 })}/>
+                    onChange={(e) => setIngForm({ ...ingForm, cost_per_unit: parseFloat(e.target.value) || 0 })} />
                 </div>
                 <div className="admin-field">
                   <label>Proveedor</label>
@@ -337,6 +338,22 @@ export default function InventoryDashboard() {
                     <option value="">Sin proveedor</option>
                     {suppliers.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
+                </div>
+                <div className="admin-field" style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={ingForm.is_direct_product}
+                      onChange={(e) => setIngForm({ ...ingForm, is_direct_product: e.target.checked })}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <span>
+                      <strong>Producto directo</strong>
+                      <span style={{ fontSize: 12, color: '#98989D', marginLeft: 6 }}>
+                        (bebidas, snacks — no pasa por cocina, no aparece en bodega del cocinero)
+                      </span>
+                    </span>
+                  </label>
                 </div>
               </div>
               <div className="admin-form-actions">
@@ -356,7 +373,7 @@ export default function InventoryDashboard() {
         {entryForm && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setEntryForm(null)}>
             <div className="admin-confirm-modal" style={{ maxWidth: 400 }}>
-              <Package size={15}/> Registrar entrada
+              <Package size={15} /> Registrar entrada
               <p style={{ fontSize: 13, color: 'var(--a-muted)' }}>
                 {ingredients.find((i) => i.id === entryForm.ingredient_id)?.name}
                 {' — Stock actual: '}
@@ -369,13 +386,13 @@ export default function InventoryDashboard() {
                 <input className="admin-input" type="number" min="0.001" step="0.001"
                   value={entryForm.quantity || ''}
                   onChange={(e) => setEntryForm({ ...entryForm, quantity: parseFloat(e.target.value) || 0 })}
-                  autoFocus/>
+                  autoFocus />
               </div>
               <div className="admin-field">
                 <label>Nota (ej: Factura #123)</label>
                 <input className="admin-input" value={entryForm.notes}
                   onChange={(e) => setEntryForm({ ...entryForm, notes: e.target.value })}
-                  placeholder="Opcional"/>
+                  placeholder="Opcional" />
               </div>
               <div className="admin-form-actions">
                 <button className="admin-btn-ghost" onClick={() => setEntryForm(null)}>Cancelar</button>
@@ -392,7 +409,7 @@ export default function InventoryDashboard() {
         {adjForm && (
           <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setAdjForm(null)}>
             <div className="admin-confirm-modal" style={{ maxWidth: 400 }}>
-              <Settings2 size={15}/> Ajuste de stock
+              <Settings2 size={15} /> Ajuste de stock
               <p style={{ fontSize: 12, color: 'var(--a-muted)' }}>
                 Usa valores negativos para mermas. La justificación es obligatoria.
               </p>
@@ -401,13 +418,13 @@ export default function InventoryDashboard() {
                 <input className="admin-input" type="number" step="0.001"
                   value={adjForm.quantity || ''}
                   onChange={(e) => setAdjForm({ ...adjForm, quantity: parseFloat(e.target.value) || 0 })}
-                  autoFocus/>
+                  autoFocus />
               </div>
               <div className="admin-field">
                 <label>Justificación * (obligatoria)</label>
                 <input className="admin-input" value={adjForm.notes}
                   onChange={(e) => setAdjForm({ ...adjForm, notes: e.target.value })}
-                  placeholder="Ej: Merma por caducidad, corrección de conteo..."/>
+                  placeholder="Ej: Merma por caducidad, corrección de conteo..." />
               </div>
               <div className="admin-form-actions">
                 <button className="admin-btn-ghost" onClick={() => setAdjForm(null)}>Cancelar</button>

@@ -153,8 +153,9 @@ export default function BodegaView() {
   }
 
   const filtered = ingredients.filter((i) =>
-    !search || i.name.toLowerCase().includes(search.toLowerCase())
-  );
+  !i.is_direct_product &&
+  (!search || i.name.toLowerCase().includes(search.toLowerCase()))
+);
   const hasActiveTurn = activeWithdrawal && activeWithdrawal.status === 'abierto';
 
   return (
@@ -305,7 +306,7 @@ export default function BodegaView() {
               Ingresa las cantidades que retirarás. Solo los campos con cantidad &gt; 0 se registran.
             </p>
 
-            {ingredients.map((ing) => {
+              {ingredients.filter((i) => !i.is_direct_product).map((ing) => {
               const val = wdItems.find((i) => i.ingredient_id === ing.id)?.quantity_withdrawn ?? 0;
               const overLimit = val > ing.stock_quantity;
               return (
