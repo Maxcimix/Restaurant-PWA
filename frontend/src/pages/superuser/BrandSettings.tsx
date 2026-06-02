@@ -28,11 +28,25 @@ export default function BrandSettings() {
     try {
       const fd = new FormData();
       fd.append('image', file);
-      const res = await apiFetch<{ url: string }>('/admin/upload', { method: 'POST', body: fd });
-      setForm((f) => ({ ...f, logo_url: res.url }));
+      const token = localStorage.getItem('rpwa-token');
+      // NO usar apiFetch: fuerza Content-Type: application/json, lo que impide
+      // que multer detecte el boundary multipart y parsee el archivo.
+      // Con fetch directo el browser establece el Content-Type: multipart/form-data correcto.
+      const res = await fetch('/api/admin/upload', {
+        method: 'POST',
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: 'Error al subir el logo' }));
+        throw new Error(err.message ?? 'Error al subir el logo');
+      }
+      const data = await res.json() as { url: string };
+      setForm((f) => ({ ...f, logo_url: data.url }));
       showMsg('Logo subido correctamente', true);
-    } catch {
-      showMsg('Error al subir el logo', false);
+    } catch (err) {
+      console.error('[BrandSettings/upload]', err);
+      showMsg(err instanceof Error ? err.message : 'Error al subir el logo', false);
     } finally {
       setUploading(false);
     }

@@ -1,16 +1,3 @@
-// ============================================================
-// frontend/src/hooks/useKitchenSocket.ts  —  Fase 5: KDS
-//
-// FIXES:
-//  1. React StrictMode: el doble mount desmontaba el WS antes de
-//     que terminara de conectarse → ahora se verifica readyState
-//     antes de cerrar y se usa un flag `intentionalClose`.
-//  2. Las funciones del store (addOrder, updateStatus, removeOrder)
-//     cambiaban de referencia en cada render → ahora se guardan
-//     en refs y se excluyen de las dependencias del useCallback,
-//     evitando el loop de reconexión.
-// ============================================================
-
 import { useEffect, useRef, useCallback } from 'react';
 import { useKitchenStore } from '../store/kitchenStore';
 import { apiFetch }        from '../services/api';

@@ -1,12 +1,3 @@
-// ============================================================
-// backend/src/controllers/inventoryController.ts  —  Fase 9
-//
-// Gestiona: ingredientes, proveedores, entradas, ajustes,
-// movimientos e historial de bodega.
-// Todos los endpoints requieren autenticación JWT.
-// Admin: CRUD completo. Cocinero: solo lectura + retiros.
-// ============================================================
-
 import { Response }    from 'express';
 import pool            from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';

@@ -1,25 +1,3 @@
-// ============================================================
-// backend/src/controllers/orderController.ts
-//
-// CAMBIOS DE FLUJO (Solicitud de cuenta separada):
-//
-//  createOrder:
-//    - payment_method OPCIONAL para source='waiter' (se define cuando
-//      el cliente pide la cuenta, no al tomar el pedido).
-//
-//  updateOrderStatus:
-//    - Al marcar 'delivered', la mesa queda en 'occupied', NO en
-//      'waiting_bill'. El cliente puede seguir en la mesa; la cuenta
-//      se solicita explícitamente con el nuevo endpoint.
-//
-//  requestBill (NUEVO):
-//    - PATCH /api/orders/:id/request-bill
-//    - El mesero la llama cuando el cliente pide la cuenta.
-//    - Recibe payment_method, tip, notas. Actualiza la orden y cambia
-//      la mesa a 'waiting_bill'. Caja interviene a partir de aquí.
-//
-// ============================================================
-
 import { Request, Response } from 'express';
 import pool from '../utils/db';
 import { broadcast } from '../websocket/handlers';

@@ -1,8 +1,3 @@
-// ============================================================
-// backend/src/controllers/uploadController.ts
-// Subida de imágenes — Cloudinary con fallback a disco local
-// ============================================================
-
 import { Request, Response } from 'express';
 import { v2 as cloudinary }  from 'cloudinary';
 import multer                from 'multer';

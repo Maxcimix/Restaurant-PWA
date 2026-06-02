@@ -1,15 +1,3 @@
-// ============================================================
-// backend/src/controllers/cajaController.ts  —  Fase 4
-//
-// POST /api/orders/:id/close
-//   Cierra la orden, registra al cajero, genera recibo digital
-//   y notifica por WebSocket al cliente que rastreaba su pedido.
-//
-// GET /api/orders/active
-//   Retorna todas las órdenes no finalizadas para el dashboard.
-//   (Movido aquí para separar responsabilidades del orderController)
-// ============================================================
-
 import { Request, Response } from 'express';
 import pool                  from '../utils/db';
 import { broadcast }         from '../websocket/handlers';

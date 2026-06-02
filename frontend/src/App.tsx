@@ -16,32 +16,32 @@ import RoleSelectPage   from './pages/RoleSelectPage';
 import LoginPage        from './pages/LoginPage';
 import ProtectedRoute   from './components/auth/ProtectedRoute';
 
-// Fase 3
+
 import ClientMenu       from './pages/ClientMenu';
 import Checkout         from './pages/Checkout';
 import OrderTracker     from './pages/OrderTracker';
 
-// Fase 4
+
 import CajaAutoservicio from './pages/caja/CajaAutoservicio';
 
-// Fase 5
+
 import KDS              from './pages/cocina/KDS';
 
-// Fase 6
+
 import TableDashboard   from './pages/mesero/TableDashboard';
 import TakeOrder        from './pages/mesero/TakeOrder';
 
-// Fase 7
+
 import CajaMesero       from './pages/cashier/CajaMesero';
 
-// Fase 8 — Admin
+
 import Dashboard        from './pages/admin/Dashboard';
 import MenuMgmt         from './pages/admin/MenuMgmt';
 import UsersMgmt        from './pages/admin/UsersMgmt';
 import Reports          from './pages/admin/Reports';
 import Settings         from './pages/admin/Settings';
 
-// Fase 9 — Inventario
+
 import InventoryDashboard from './pages/admin/InventoryDashboard';
 import SupplierManager    from './pages/admin/SupplierManager';
 import RecipeEditor       from './pages/admin/RecipeEditor';

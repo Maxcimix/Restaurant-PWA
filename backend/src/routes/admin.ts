@@ -16,7 +16,9 @@ import { authenticate } from '../middleware/auth';
 import { requireRole }  from '../middleware/roleAuth';
 
 const router = Router();
-const isAdmin = [authenticate, requireRole(['admin'])];
+const isAdmin        = [authenticate, requireRole(['admin'])];
+// Upload lo usan admin (imágenes de menú) y superusuario (logo del restaurante)
+const isAdminOrSuper = [authenticate, requireRole(['admin', 'superusuario'])];
 
 // KPIs
 router.get('/stats',   ...isAdmin, getStats);
@@ -47,6 +49,6 @@ router.get('/settings',  ...isAdmin, getSettings);
 router.put('/settings',  ...isAdmin, saveSettings);
 
 // Subida de imágenes
-router.post('/upload', ...isAdmin, upload.single('image'), uploadImage);
+router.post('/upload', ...isAdminOrSuper, upload.single('image'), uploadImage);
 
 export default router;

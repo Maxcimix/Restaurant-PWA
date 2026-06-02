@@ -1,8 +1,3 @@
-// ============================================================
-// backend/src/server.ts  —  Fase 9 (actualizado)
-// NUEVO: /api/inventory → inventoryRoutes (ingredients, suppliers, recipes, withdrawals)
-// ============================================================
-
 import express          from 'express';
 import cors             from 'cors';
 import { createServer } from 'http';
@@ -32,21 +27,38 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost')
   .split(',')
   .map((o) => o.trim());
 
+// Dominios de ngrok aceptados automáticamente cuando NGROK_ALLOWED=true.
+// Evita tener que actualizar CORS_ORIGIN cada vez que cambia el túnel.
+const ngrokAllowed = process.env.NGROK_ALLOWED === 'true';
+const NGROK_PATTERNS = ['.ngrok-free.dev', '.ngrok.io', '.ngrok.app'];
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS bloqueado: ${origin}`));
-    }
+    // Requests sin origen (ej: curl, Postman, mobile apps) → permitir
+    if (!origin) return callback(null, true);
+    // Origen en lista blanca
+    if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
+    // Cualquier subdominio de ngrok cuando está habilitado
+    if (ngrokAllowed && NGROK_PATTERNS.some((p) => origin.includes(p))) return callback(null, true);
+    // Bloqueado
+    callback(new Error(`CORS bloqueado: ${origin}`));
   },
     credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// express.json() global NO debe procesar multipart/form-data (subida de imágenes),
+// porque lo interpreta como JSON inválido → 400/413 antes de que multer lo procese.
+// Se excluye explícitamente la ruta de upload.
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/upload') return next();
+  return express.json()(req, res, next);
+});
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/upload') return next();
+  return express.urlencoded({ extended: false })(req, res, next);
+});
 
 // Servir imágenes subidas localmente (fallback cuando Cloudinary no está configurado)
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));

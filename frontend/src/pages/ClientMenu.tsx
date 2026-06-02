@@ -1,16 +1,3 @@
-
-// ============================================================
-// frontend/src/pages/ClientMenu.tsx  →  /autoservicio/menu
-//
-// CAMBIOS vs Fase 3 original:
-// - ELIMINADO: toda referencia a tableId / tableNumber / mesa.
-//   Autoservicio accede directo al menú sin validar mesa.
-// - CORREGIDO: tabs de categorías usan cat.id como key única
-//   (evita duplicados en React).
-// - ARQUITECTURA: 100% dinámico — sin nombres de categoría
-//   hardcodeados. Renderiza lo que venga del backend.
-// ============================================================
-
 import { formatCOP } from '../utils/constants';
 import { useState, useCallback } from 'react';
 import { useMenu } from '../hooks/useMenu';

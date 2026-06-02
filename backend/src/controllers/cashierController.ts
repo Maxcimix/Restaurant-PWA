@@ -1,12 +1,4 @@
 import { Request, Response } from 'express';
-// backend/src/controllers/cashierController.ts  —  Fase 7
-//
-// Controladores del módulo Caja Con Mesero.
-// Todas las operaciones usan transacciones DB para garantizar
-// consistencia: pago + cierre de orden + liberación de mesa
-// son atómicas — nunca quedan en estado intermedio.
-// ============================================================
-
 import pool            from '../utils/db';
 import { broadcast }   from '../websocket/handlers';
 import type { AuthRequest } from '../middleware/auth';
