@@ -22,7 +22,9 @@ const ROLE_ROUTES: Record<string, Record<string, string>> = {
   },
 };
 
-const API = import.meta.env.VITE_API_URL ?? 'http://localhost:3001/api';
+// Usar ruta relativa /api para que funcione tanto en localhost como en ngrok/producción.
+// VITE_API_URL solo se usa si está explícitamente definido en .env del frontend.
+const API = import.meta.env.VITE_API_URL ?? '/api';
 
 export function useAuth() {
   const navigate = useNavigate();

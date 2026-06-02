@@ -1,23 +1,3 @@
-// ============================================================
-// frontend/src/hooks/useCashierWebSocket.ts  —  Fase 7 (actualizado)
-//
-// WebSocket para el dashboard de Caja Con Mesero.
-//
-// NUEVO COMPORTAMIENTO:
-//   Caja recibe TODOS los eventos de órdenes del mesero desde que
-//   se crean (sent_to_kitchen) → monitor de solo lectura.
-//   Solo interviene activamente cuando status === 'waiting_bill'
-//   (mesero solicitó la cuenta con método de pago y propina).
-//
-// Eventos escuchados:
-//   order:new           → nueva orden del mesero → agregar al monitor
-//   order:status        → actualizar estado en el monitor
-//   order:bill_requested → mesero solicitó cuenta → agregar a waiting tables + monitor
-//   order:paid          → pago confirmado → quitar de ambos paneles
-//   table:released      → mesa liberada → quitar de paneles
-//   table:status        → sincronizar estado de mesas
-// ============================================================
-
 import { useEffect, useRef, useCallback } from 'react';
 import { useCashierStore } from '../store/cashierStore';
 import { getWaitingTables, getActiveMonitorOrders } from '../services/cashierService';
@@ -164,7 +144,6 @@ export function useCashierWebSocket(token: string | null) {
               getWaitingTables().then(setWaitingTables).catch(() => {});
               // Quitar órdenes completadas del monitor
               removeMonitorOrder(payload.orderId as string);
-              void tableId; // usado en log
             }
             break;
           }

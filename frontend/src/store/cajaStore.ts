@@ -8,7 +8,6 @@
 // ============================================================
 
 import { create } from 'zustand';
-//import type { Order, OrderStatus } from '../types/order';
 import type { OrderWithMeta } from '../types/caja';
 
 interface CajaState {

@@ -1,8 +1,3 @@
-// ============================================================
-// backend/src/server.ts  —  Fase 9 (actualizado)
-// NUEVO: /api/inventory → inventoryRoutes (ingredients, suppliers, recipes, withdrawals)
-// ============================================================
-
 import express          from 'express';
 import cors             from 'cors';
 import { createServer } from 'http';
@@ -32,13 +27,21 @@ const allowedOrigins = (process.env.CORS_ORIGIN ?? 'http://localhost')
   .split(',')
   .map((o) => o.trim());
 
+// Dominios de ngrok aceptados automáticamente cuando NGROK_ALLOWED=true.
+// Evita tener que actualizar CORS_ORIGIN cada vez que cambia el túnel.
+const ngrokAllowed = process.env.NGROK_ALLOWED === 'true';
+const NGROK_PATTERNS = ['.ngrok-free.dev', '.ngrok.io', '.ngrok.app'];
+
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.some((o) => origin.startsWith(o))) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS bloqueado: ${origin}`));
-    }
+    // Requests sin origen (ej: curl, Postman, mobile apps) → permitir
+    if (!origin) return callback(null, true);
+    // Origen en lista blanca
+    if (allowedOrigins.some((o) => origin.startsWith(o))) return callback(null, true);
+    // Cualquier subdominio de ngrok cuando está habilitado
+    if (ngrokAllowed && NGROK_PATTERNS.some((p) => origin.includes(p))) return callback(null, true);
+    // Bloqueado
+    callback(new Error(`CORS bloqueado: ${origin}`));
   },
     credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
