@@ -45,8 +45,17 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+// express.json() global NO debe procesar multipart/form-data (subida de imágenes),
+// porque lo interpreta como JSON inválido → 400/413 antes de que multer lo procese.
+// Se excluye explícitamente la ruta de upload.
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/upload') return next();
+  return express.json()(req, res, next);
+});
+app.use((req, res, next) => {
+  if (req.path === '/api/admin/upload') return next();
+  return express.urlencoded({ extended: false })(req, res, next);
+});
 
 // Servir imágenes subidas localmente (fallback cuando Cloudinary no está configurado)
 app.use('/uploads', express.static(path.join(process.cwd(), 'public', 'uploads')));
