@@ -1,8 +1,11 @@
 // ============================================================
-// backend/src/routes/orders.ts  —  Fixes multi
+// backend/src/routes/orders.ts  —  Fase 10 (corregido)
 //
-// NUEVO: GET /api/orders/history  — historial del día (FIX 4)
-// NUEVO: GET /api/orders/metrics  — timings operacionales (FIX 5)
+// CAMBIO vs original:
+//   + POST /items/:id/prepare  → prepareOrderItem (F10: descuenta
+//     ingredientes del mini-inventario al marcar ítem como preparado)
+//
+// TODO lo demás se mantiene IGUAL al original del proyecto.
 // ============================================================
 
 import { Router } from 'express';
@@ -12,15 +15,28 @@ import {
   updateOrderStatus,
   getActiveOrders,
   getOrderHistory,
+  requestBill,
+  deliverOrderItem,
+  canModifyOrder,
+  modifyOrder,
 } from '../controllers/orderController';
-import { closeOrder }  from '../controllers/cajaController';
-import { getOrderMetrics } from '../controllers/metricsController';
-import { authenticate }   from '../middleware/auth';
-import { requireRole }    from '../middleware/roleAuth';
+import { closeOrder }        from '../controllers/cajaController';
+import { getOrderMetrics }   from '../controllers/metricsController';
+import { prepareOrderItem }  from '../controllers/shiftController';  // ← ÚNICO nuevo de F10
+import { authenticate }      from '../middleware/auth';
+import { requireRole }       from '../middleware/roleAuth';
 
 const router = Router();
 
 // ── Rutas específicas (SIEMPRE antes que /:id) ───────────────
+
+// F10: preparar ítem y descontar mini-inventario (ANTES de /active para evitar conflicto)
+router.post(
+  '/items/:id/prepare',
+  authenticate,
+  requireRole(['cocina', 'admin']),
+  prepareOrderItem
+);
 
 // Órdenes activas — caja, cocina, mesero, admin
 router.get(
@@ -30,7 +46,7 @@ router.get(
   getActiveOrders
 );
 
-// FIX 4: Historial del día — solo caja y admin
+// Historial del día — solo caja y admin
 router.get(
   '/history',
   authenticate,
@@ -38,7 +54,7 @@ router.get(
   getOrderHistory
 );
 
-// FIX 5: Métricas operacionales — solo admin y caja
+// Métricas operacionales — solo admin y caja
 router.get(
   '/metrics',
   authenticate,
@@ -46,17 +62,38 @@ router.get(
   getOrderMetrics
 );
 
+router.patch(
+  '/:id/items/:itemId/deliver',
+  authenticate,
+  requireRole(['mesero', 'admin']),
+  deliverOrderItem
+);
 // ── Ruta pública: crear orden ────────────────────────────────
 router.post('/', createOrder);
 
 // ── Rutas con parámetro /:id ─────────────────────────────────
 router.get('/:id', getOrderById);
 
+// Verificar si la orden puede ser modificada (público - cliente autoservicio)
+router.get('/:id/can-modify', canModifyOrder);
+
+// Modificar orden antes de enviar a cocina (público - cliente autoservicio)
+router.patch('/:id/modify', modifyOrder);
+
 router.patch(
   '/:id/status',
   authenticate,
-  requireRole(['caja', 'cocina', 'admin']),
+  requireRole(['caja', 'cocina', 'mesero', 'admin']),
   updateOrderStatus
+);
+
+// El mesero solicita la cuenta (cliente pidió pagar).
+// Registra método de pago + propina → mesa pasa a waiting_bill → caja cobra.
+router.patch(
+  '/:id/request-bill',
+  authenticate,
+  requireRole(['mesero', 'admin']),
+  requestBill
 );
 
 router.post(
@@ -65,5 +102,4 @@ router.post(
   requireRole(['caja', 'admin']),
   closeOrder
 );
-
 export default router;

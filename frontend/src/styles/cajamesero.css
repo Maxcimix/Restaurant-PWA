@@ -10,13 +10,13 @@
 button { cursor: pointer; font-family: inherit; border: none; background: none; }
 
 :root {
-  --c-bg:          #050810;
-  --c-surface:     #0a0f18;
-  --c-surface-2:   #0f1520;
-  --c-border:      rgba(255,255,255,0.07);
-  --c-text:        #f0ece6;
-  --c-muted:       #6b6775;
-  --c-dim:         #2e3040;
+  --c-bg:          #F5F5F7;
+  --c-surface:     #FFFFFF;
+  --c-surface-2:   #F5F5F7;
+  --c-border:      rgba(28,20,16,0.06);
+  --c-text:        #1D1D1F;
+  --c-muted:       #98989D;
+  --c-dim:         #D1D1D8;
 
   --c-green:       #22c55e;
   --c-green-soft:  rgba(34,197,94,0.12);
@@ -62,15 +62,16 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   background: var(--c-green-soft); color: var(--c-green);
   border: 1px solid var(--c-green-border);
   padding: 4px 12px; border-radius: 100px;
+  display: inline-flex; align-items: center; gap: 6px;
 }
 .cajam-refresh-btn, .cajam-exit-btn {
   min-height: 38px; padding: 0 12px; border-radius: 9px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   color: var(--c-muted); font-size: 13px;
   display: flex; align-items: center; gap: 6px;
   transition: color 0.2s, background 0.2s;
 }
-.cajam-refresh-btn:hover, .cajam-exit-btn:hover { color: var(--c-text); background: rgba(255,255,255,0.09); }
+.cajam-refresh-btn:hover, .cajam-exit-btn:hover { color: var(--c-text); background: rgba(28,20,16,0.08); }
 @keyframes cajaSpin { to { transform: rotate(360deg); } }
 
 /* Error */
@@ -91,7 +92,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .cajam-search {
   flex: 1; max-width: 400px;
   padding: 8px 14px; border-radius: 10px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   color: var(--c-text); font-family: 'Satoshi', sans-serif; font-size: 14px; outline: none;
   transition: border-color 0.2s;
 }
@@ -118,11 +119,10 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .cajam-empty p    { font-size: 16px; font-weight: 500; color: var(--c-muted); }
 .cajam-empty span { font-size: 13px; }
 
-/* Tabla de mesas */
-.cajam-table { display: flex; flex-direction: column; gap: 0; }
+.cajam-table { display: flex; flex-direction: column; gap: 6px; padding: 4px 0; }
 .cajam-table-head {
   display: grid;
-  grid-template-columns: 140px 120px 1fr 140px 100px 120px;
+  grid-template-columns: 110px 120px 1fr 110px 100px 100px 100px;
   gap: 12px; padding: 8px 16px;
   font-size: 11px; font-weight: 600; color: var(--c-muted);
   text-transform: uppercase; letter-spacing: 0.5px;
@@ -130,13 +130,19 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .cajam-table-row {
   display: grid;
-  grid-template-columns: 140px 120px 1fr 140px 100px 120px;
+  grid-template-columns: 110px 120px 1fr 110px 100px 100px 100px;
   gap: 12px; align-items: center;
   padding: 14px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
-  transition: background 0.15s;
+  background: var(--c-surface);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.04);
+  transition: box-shadow .15s, border-color .15s;
 }
-.cajam-table-row:hover { background: rgba(255,255,255,0.03); }
+.cajam-table-row:hover {
+  box-shadow: 0 3px 10px rgba(0,0,0,.08);
+  border-color: rgba(34,197,94,.2);
+}
 .col-right { text-align: right; }
 
 .mesa-badge {
@@ -174,7 +180,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   color: var(--c-muted); padding: 6px; border-radius: 8px; line-height: 0;
   transition: color 0.2s, background 0.2s;
 }
-.modal-close-btn:hover { color: var(--c-text); background: rgba(255,255,255,0.07); }
+.modal-close-btn:hover { color: var(--c-text); background: rgba(28,20,16,0.06); }
 
 .modal-back-btn {
   color: var(--c-muted); padding: 6px; border-radius: 8px; line-height: 0;
@@ -186,7 +192,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 /* ── BillGenerator ── */
 .bill-modal {
-  background: var(--c-surface); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--c-surface); border: 1px solid rgba(28,20,16,0.10);
   border-radius: 20px; width: 100%; max-width: 560px;
   max-height: 90svh; display: flex; flex-direction: column; overflow: hidden;
   animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
@@ -213,7 +219,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .bill-order-info { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
 .bill-order-num {
   font-size: 13px; font-weight: 600; color: var(--c-text);
-  background: rgba(255,255,255,0.05); padding: 3px 10px; border-radius: 6px;
+  background: rgba(28,20,16,0.04); padding: 3px 10px; border-radius: 6px;
 }
 .bill-waiter {
   display: flex; align-items: center; gap: 5px;
@@ -228,7 +234,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .bill-items-table td {
   font-size: 14px; padding: 9px 8px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(28,20,16,0.03);
   color: var(--c-text);
 }
 .bill-items-table .col-qty, .bill-items-table .col-price, .bill-items-table .col-sub { text-align: right; }
@@ -253,10 +259,10 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .bill-print-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 11px 16px; border-radius: 11px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   color: var(--c-muted); font-size: 13px; transition: color 0.2s, background 0.2s;
 }
-.bill-print-btn:hover { color: var(--c-text); background: rgba(255,255,255,0.09); }
+.bill-print-btn:hover { color: var(--c-text); background: rgba(28,20,16,0.08); }
 .bill-pay-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
   padding: 13px; border-radius: 12px;
@@ -270,7 +276,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 /* ── PaymentMethod ── */
 .payment-modal {
-  background: var(--c-surface); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--c-surface); border: 1px solid rgba(28,20,16,0.10);
   border-radius: 20px; width: 100%; max-width: 480px;
   display: flex; flex-direction: column; overflow: hidden;
   animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
@@ -299,7 +305,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .pm-option {
   display: flex; align-items: center; gap: 8px;
   padding: 12px 14px; border-radius: 12px;
-  background: rgba(255,255,255,0.04); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.03); border: 1px solid var(--c-border);
   color: var(--c-muted); font-size: 13px; font-weight: 500;
   transition: all 0.2s;
 }
@@ -316,6 +322,22 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   display: flex; align-items: center; justify-content: space-between;
 }
 .pf-hint { font-size: 11px; color: var(--c-dim); font-weight: 400; }
+.pf-hint--locked { color: var(--c-accent-green, #22c55e); }
+
+/* Badge de campo bloqueado (método/propina fijada por el mesero) */
+.pm-locked-badge {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 16px;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.25);
+  border-radius: 10px;
+  font-size: 14px; font-weight: 600; color: #22c55e;
+}
+.pm-locked-icon {
+  display: flex; align-items: center;
+  color: rgba(34,197,94,0.6);
+}
+
 .pf-input-wrap { position: relative; display: flex; align-items: center; }
 .pf-currency {
   position: absolute; left: 14px;
@@ -323,7 +345,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .pf-input {
   width: 100%; padding: 11px 14px 11px 32px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   border-radius: 12px; color: var(--c-text);
   font-family: 'Cabinet Grotesk', sans-serif; font-size: 20px; font-weight: 700;
   outline: none; transition: border-color 0.2s;
@@ -333,7 +355,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .pf-input--error { border-color: rgba(239,68,68,0.5); }
 .pf-input-text {
   width: 100%; padding: 10px 14px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   border-radius: 12px; color: var(--c-text); font-size: 14px;
   font-family: 'Satoshi', sans-serif; outline: none;
   transition: border-color 0.2s;
@@ -363,10 +385,10 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .payment-footer { display: flex; gap: 10px; padding: 14px 22px 18px; border-top: 1px solid var(--c-border); }
 .pm-btn-secondary {
   padding: 12px 18px; border-radius: 12px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   color: var(--c-muted); font-size: 14px; transition: color 0.2s, background 0.2s;
 }
-.pm-btn-secondary:hover:not(:disabled) { color: var(--c-text); background: rgba(255,255,255,0.09); }
+.pm-btn-secondary:hover:not(:disabled) { color: var(--c-text); background: rgba(28,20,16,0.08); }
 .pm-btn-confirm {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
   min-height: 50px; border-radius: 12px;
@@ -386,7 +408,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 /* ── TableRelease ── */
 .release-modal {
-  background: var(--c-surface); border: 1px solid rgba(255,255,255,0.1);
+  background: var(--c-surface); border: 1px solid rgba(28,20,16,0.10);
   border-radius: 20px; width: 100%; max-width: 500px;
   max-height: 90svh; display: flex; flex-direction: column; overflow: hidden;
   animation: modalIn 0.25s cubic-bezier(0.34,1.56,0.64,1);
@@ -409,7 +431,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   display: flex; flex-direction: column; gap: 14px;
 }
 .release-payment-summary {
-  background: rgba(255,255,255,0.03); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.03); border: 1px solid var(--c-border);
   border-radius: 12px; padding: 14px;
   display: flex; flex-direction: column; gap: 8px;
 }
@@ -418,8 +440,8 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 .release-items {
   display: flex; flex-direction: column; gap: 6px;
-  padding: 12px; background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.05); border-radius: 10px;
+  padding: 12px; background: rgba(28,20,16,0.02);
+  border: 1px solid rgba(28,20,16,0.04); border-radius: 10px;
 }
 .release-item-row {
   display: flex; justify-content: space-between;
@@ -445,10 +467,10 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .release-print-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 12px 16px; border-radius: 11px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--c-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--c-border);
   color: var(--c-muted); font-size: 13px; transition: color 0.2s, background 0.2s;
 }
-.release-print-btn:hover { color: var(--c-text); background: rgba(255,255,255,0.09); }
+.release-print-btn:hover { color: var(--c-text); background: rgba(28,20,16,0.08); }
 .release-confirm-btn {
   flex: 1; display: flex; align-items: center; justify-content: center; gap: 7px;
   min-height: 50px; border-radius: 12px;
@@ -528,11 +550,160 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 /* ── Responsive ── */
 @media (max-width: 768px) {
   .cajam-table-head, .cajam-table-row {
-    grid-template-columns: 100px 1fr 90px 100px;
+    grid-template-columns: 100px 1fr 90px 90px;
   }
   .cajam-table-head span:nth-child(2),
   .cajam-table-row span.cajam-section,
   .cajam-table-head span:nth-child(3),
-  .cajam-table-row span.cajam-waiter { display: none; }
+  .cajam-table-row span.cajam-waiter,
+  .cajam-table-head span:nth-child(5),
+  .cajam-table-row span.cajam-method { display: none; }
   .payment-methods { grid-template-columns: 1fr 1fr; }
+}
+/* ============================================================
+   Panel Monitor de caja (nuevo)
+   ============================================================ */
+
+.cajam-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 12px 20px 0;
+  border-bottom: 1px solid rgba(255,255,255,.07);
+}
+.cajam-tab {
+  display: flex; align-items: center; gap: 7px;
+  padding: 10px 18px;
+  border: none; background: none; cursor: pointer;
+  font-size: .88rem; font-weight: 600;
+  color: var(--text-muted, #94a3b8);
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all .15s;
+}
+.cajam-tab:hover { color: var(--text-primary, #f1f5f9); }
+.cajam-tab--active {
+  color: #22c55e;
+  border-bottom-color: #22c55e;
+}
+.cajam-tab-badge {
+  background: rgba(255,255,255,.15);
+  color: var(--text-primary, #f1f5f9);
+  font-size: .72rem; font-weight: 700;
+  padding: 1px 7px; border-radius: 20px;
+  min-width: 20px; text-align: center;
+}
+.cajam-tab-badge--urgent {
+  background: rgba(245,158,11,.25);
+  color: #fbbf24;
+}
+
+.cajam-monitor { padding: 16px 20px; }
+.cajam-cobro   { padding: 0; }
+
+.cajam-monitor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+/* MonitorCard */
+.mc-card {
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 12px;
+  background: var(--c-surface);
+  overflow: hidden;
+  transition: border-color .2s, box-shadow .2s;
+  box-shadow: 0 1px 4px rgba(0,0,0,.04);
+}
+.mc-card:hover {
+  box-shadow: 0 3px 12px rgba(0,0,0,.08);
+}
+.mc-card.ms-ready      { border-color: rgba(16,185,129,.3);  background: rgba(16,185,129,.03); }
+.mc-card.ms-bill       { border-color: rgba(245,158,11,.35); background: rgba(245,158,11,.03); }
+.mc-card.ms-preparing  { border-color: rgba(99,102,241,.25); background: rgba(99,102,241,.03); }
+
+.mc-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 14px; cursor: pointer; gap: 8px;
+  flex-wrap: nowrap;
+  min-width: 0;
+}
+.mc-header:hover { background: rgba(255,255,255,.03); }
+
+.mc-left { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.mc-order-num { font-weight: 700; font-size: .9rem; color: var(--text-primary); }
+.mc-table {
+  font-size: .78rem; padding: 2px 8px;
+  background: rgba(255,255,255,.08);
+  border-radius: 20px; color: var(--text-secondary);
+}
+
+.mc-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.mc-badge {
+  font-size: .75rem; font-weight: 600; padding: 3px 10px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.06);
+  color: var(--text-secondary);
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.mc-badge.ms-kitchen   { background: rgba(99,102,241,.15);  color: #a5b4fc; }
+.mc-badge.ms-preparing { background: rgba(139,92,246,.15);  color: #c4b5fd; }
+.mc-badge.ms-ready     { background: rgba(16,185,129,.15);  color: #34d399; }
+.mc-badge.ms-delivered { background: rgba(34,197,94,.12);   color: #86efac; }
+.mc-badge.ms-bill      { background: rgba(245,158,11,.15);  color: #fbbf24; }
+.mc-time { font-size: .75rem; color: var(--text-muted); }
+.mc-expand { font-size: .7rem; color: var(--text-muted); }
+
+.mc-body {
+  padding: 8px 14px 12px;
+  border-top: 1px solid rgba(255,255,255,.05);
+}
+.mc-waiter { font-size: .8rem; color: var(--text-muted); margin: 0 0 8px; display: flex; align-items: center; gap: 5px; }
+.mc-items { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 3px; }
+.mc-item { font-size: .82rem; color: var(--text-secondary); display: flex; flex-direction: column; }
+.mc-item-note { font-size: .73rem; color: var(--text-muted); }
+
+.mc-breakdown {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 8px; padding-top: 8px;
+  border-top: 1px solid rgba(28,20,16,.06);
+}
+.mc-breakdown-row {
+  display: flex; justify-content: space-between;
+  font-size: .75rem; color: var(--c-muted, #98989D);
+}
+
+.mc-footer-row {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 8px; gap: 8px;
+}
+.mc-method-chip {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: .73rem; font-weight: 600;
+  padding: 3px 9px; border-radius: 20px;
+  background: rgba(28,20,16,.06);
+  color: var(--c-muted, #98989D);
+  border: 1px solid rgba(28,20,16,.08);
+}
+.mc-total { font-size: .82rem; color: var(--text-secondary); text-align: right; }
+
+/* Notificación urgente de cuentas pendientes */
+.cajam-count-urgent {
+  background: rgba(245,158,11,.2) !important;
+  color: #fbbf24 !important;
+  border: 1px solid rgba(245,158,11,.3);
+  animation: billPulse 2s ease-in-out infinite;
+}
+@keyframes billPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .7; }
+}
+
+/* Columna de método de pago en la tabla */
+.cajam-method { display: flex; align-items: center; }
+.cajam-method-badge {
+  font-size: .78rem; padding: 2px 8px;
+  background: rgba(255,255,255,.07);
+  border-radius: 20px; color: var(--text-secondary);
 }

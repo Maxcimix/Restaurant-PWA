@@ -1,23 +1,17 @@
-// ============================================================
-// backend/src/routes/menu.ts
-//
-// Rutas del menú — públicas, sin autenticación.
-// Las categorías e items los gestiona el Admin en Fase 8.
-// El frontend renderiza dinámicamente lo que retornen estos endpoints.
-// ============================================================
- 
 import { Router } from 'express';
 import { getCategories, getMenuItems } from '../controllers/menuController';
- 
+import { getMenuAvailability } from '../controllers/menuController';
+
 const router = Router();
- 
+
 // GET /api/menu/categories
-// Retorna categorías activas ordenadas por position, sin duplicados (DISTINCT ON)
 router.get('/categories', getCategories);
- 
+
 // GET /api/menu/items?category=:uuid
-// Retorna items disponibles, filtrado opcional por category_id
 router.get('/items', getMenuItems);
- 
+
+// GET /api/menu/availability
+// Retorna disponibilidad de cada item según stock en bodega cocina/principal
+router.get('/availability', getMenuAvailability);
+
 export default router;
- 

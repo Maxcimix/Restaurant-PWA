@@ -64,3 +64,29 @@ export const releaseTable = (tableId: string): Promise<{ tableId: string; status
     method: 'PATCH',
     body:   JSON.stringify({}),
   });
+/**
+ * Obtiene todas las órdenes activas del mesero para el panel
+ * de monitoreo de caja. Incluye desde sent_to_kitchen hasta
+ * waiting_bill. Caja las puede ver pero solo cobra las waiting_bill.
+ */
+export const getActiveMonitorOrders = (): Promise<import('../types/cashier').MonitorOrder[]> =>
+  apiFetch<import('../types/cashier').MonitorOrder[]>('/orders/active').then((orders) =>
+    // Filtrar solo órdenes del mesero (source='waiter') que están activas
+    (orders as (import('../types/cashier').MonitorOrder & { source?: string })[])
+      .filter((o) => (o as { source?: string }).source === 'waiter')
+      .map((o) => ({
+        orderId:       o.orderId       ?? (o as { id?: string }).id ?? '',
+        orderNumber:   o.orderNumber   ?? (o as { order_number?: string }).order_number ?? '',
+        tableId:       o.tableId       ?? (o as { table_id?: string }).table_id ?? null,
+        tableNumber:   o.tableNumber   ?? (o as { table_number?: number }).table_number ?? null,
+        waiterName:    o.waiterName    ?? (o as { waiter_name?: string }).waiter_name ?? null,
+        status:        o.status        ?? '',
+        paymentMethod: o.paymentMethod ?? (o as { payment_method?: string }).payment_method ?? null,
+        tip:           parseFloat(String(o.tip ?? '0')),
+        subtotal:      parseFloat(String(o.subtotal ?? '0')),
+        tax:           parseFloat(String(o.tax ?? '0')),
+        total:         parseFloat(String(o.total ?? '0')),
+        createdAt:     o.createdAt     ?? (o as { created_at?: string }).created_at ?? '',
+        items:         o.items ?? [],
+      }))
+  );

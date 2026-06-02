@@ -1,15 +1,12 @@
 // ============================================================
-// frontend/src/store/cashierStore.ts  —  Fase 7
+// frontend/src/store/cashierStore.ts  —  Fase 7 (actualizado)
 //
-// Estado global del módulo Caja Con Mesero.
+// NUEVO: monitorOrders — panel de monitoreo de caja.
+//   Caja puede ver TODAS las órdenes del mesero desde que se envían
+//   a cocina (modo solo-lectura). Solo interviene cuando la orden
+//   llega a 'waiting_bill' (mesero solicitó la cuenta).
 //
-// PERSISTENCIA: sessionStorage (no localStorage).
-// Se recupera si el usuario recarga por error durante un cobro,
-// pero se limpia al cerrar el tab. Evita mostrar datos obsoletos
-// de sesiones anteriores.
-//
-// SEPARACIÓN: totalmente independiente de cajaStore.ts (Fase 4,
-// que es para Caja Autoservicio). Misma arquitectura, diferente dominio.
+// La mesa solo puede ser liberada por CAJA al procesar el pago.
 // ============================================================
 
 import { create } from 'zustand';
@@ -19,31 +16,37 @@ import type {
   BillDetail,
   PayOrderResponse,
   CashierPaymentMethod,
+  MonitorOrder,
 } from '../types/cashier';
 
 interface CashierState {
-  // ── Mesas esperando cuenta ──────────────────────────────
+  // ── Panel monitor (todas las órdenes activas del mesero) ─
+  monitorOrders: MonitorOrder[];
+
+  // ── Mesas esperando cuenta (solo waiting_bill) ───────────
   waitingTables: WaitingTable[];
   loading:       boolean;
   error:         string | null;
 
-  // ── Flujo de cobro activo ───────────────────────────────
-  // Mesa seleccionada para cobrar
+  // ── Flujo de cobro activo ────────────────────────────────
   selectedTable:    WaitingTable | null;
-  // Cuenta detallada generada por el backend
   activeBill:       BillDetail | null;
-  // Método de pago elegido
   paymentMethod:    CashierPaymentMethod;
-  // Resultado del pago (para mostrar en TableRelease)
   paymentResult:    PayOrderResponse | null;
-  // Flag de procesamiento (bloquea doble submit)
   isProcessing:     boolean;
 
-  // ── Acciones ─────────────────────────────────────────────
-  setWaitingTables:  (tables: WaitingTable[]) => void;
-  removeWaitingTable:(tableId: string) => void;
-  setLoading:        (v: boolean) => void;
-  setError:          (msg: string | null) => void;
+  // ── Acciones monitor ─────────────────────────────────────
+  setMonitorOrders:    (orders: MonitorOrder[]) => void;
+  upsertMonitorOrder:  (order: MonitorOrder) => void;
+  updateMonitorStatus: (orderId: string, status: string, extra?: Partial<MonitorOrder>) => void;
+  removeMonitorOrder:  (orderId: string) => void;
+
+  // ── Acciones waiting tables ──────────────────────────────
+  setWaitingTables:   (tables: WaitingTable[]) => void;
+  addWaitingTable:    (table: WaitingTable) => void;
+  removeWaitingTable: (tableId: string) => void;
+  setLoading:         (v: boolean) => void;
+  setError:           (msg: string | null) => void;
 
   selectTable:       (table: WaitingTable) => void;
   setActiveBill:     (bill: BillDetail)    => void;
@@ -51,13 +54,13 @@ interface CashierState {
   setPaymentResult:  (r: PayOrderResponse) => void;
   setProcessing:     (v: boolean)          => void;
 
-  // Limpia todo el flujo activo (tras liberar la mesa o cancelar)
   resetFlow:         () => void;
 }
 
 export const useCashierStore = create<CashierState>()(
   persist(
     (set) => ({
+      monitorOrders: [],
       waitingTables: [],
       loading:       false,
       error:         null,
@@ -67,8 +70,41 @@ export const useCashierStore = create<CashierState>()(
       paymentResult: null,
       isProcessing:  false,
 
+      // ── Monitor ───────────────────────────────────────────
+      setMonitorOrders: (orders) => set({ monitorOrders: orders }),
+
+      upsertMonitorOrder: (order) =>
+        set((s) => {
+          const exists = s.monitorOrders.find((o) => o.orderId === order.orderId);
+          return {
+            monitorOrders: exists
+              ? s.monitorOrders.map((o) => o.orderId === order.orderId ? { ...o, ...order } : o)
+              : [...s.monitorOrders, order],
+          };
+        }),
+
+      updateMonitorStatus: (orderId, status, extra = {}) =>
+        set((s) => ({
+          monitorOrders: s.monitorOrders.map((o) =>
+            o.orderId === orderId ? { ...o, status, ...extra } : o
+          ),
+        })),
+
+      removeMonitorOrder: (orderId) =>
+        set((s) => ({
+          monitorOrders: s.monitorOrders.filter((o) => o.orderId !== orderId),
+        })),
+
+      // ── Waiting tables ────────────────────────────────────
       setWaitingTables: (tables) =>
         set({ waitingTables: tables, loading: false, error: null }),
+
+      addWaitingTable: (table) =>
+        set((s) => ({
+          waitingTables: s.waitingTables.find((t) => t.tableId === table.tableId)
+            ? s.waitingTables
+            : [...s.waitingTables, table],
+        })),
 
       removeWaitingTable: (tableId) =>
         set((s) => ({
@@ -78,7 +114,14 @@ export const useCashierStore = create<CashierState>()(
       setLoading:   (loading)  => set({ loading }),
       setError:     (error)    => set({ error, loading: false }),
 
-      selectTable:  (table)    => set({ selectedTable: table, activeBill: null, paymentResult: null }),
+      // Pre-carga el método de pago que el mesero ya eligió al solicitar la cuenta.
+      // Sin esto, PaymentMethod siempre arranca en 'efectivo' y caja tiene que elegir de nuevo.
+      selectTable: (table) => set({
+        selectedTable: table,
+        activeBill:    null,
+        paymentResult: null,
+        paymentMethod: (table.paymentMethod as CashierPaymentMethod) ?? 'efectivo',
+      }),
       setActiveBill:(bill)     => set({ activeBill: bill }),
       setPaymentMethod: (m)   => set({ paymentMethod: m }),
       setPaymentResult: (r)   => set({ paymentResult: r }),
@@ -96,9 +139,7 @@ export const useCashierStore = create<CashierState>()(
     }),
     {
       name:    'rpwa-cashier-session',
-      // sessionStorage: se borra al cerrar el tab, no persiste entre sesiones
       storage: createJSONStorage(() => sessionStorage),
-      // Solo persistir el flujo activo — las waiting tables siempre se recargan
       partialize: (s) => ({
         selectedTable: s.selectedTable,
         activeBill:    s.activeBill,

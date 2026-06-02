@@ -1,12 +1,3 @@
-// ============================================================
-// frontend/src/components/autoservicio/Cart.tsx
-//
-// CAMBIOS vs Fase 3 original:
-// - ELIMINADO: toda referencia a tableId / tableNumber / mesa.
-// - El carrito solo muestra items, controles +/- y total.
-// - clearCart() ya no resetea tableId (no existe en el store).
-// ============================================================
-
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '../../store/cartStore';
 import './cart.css';
@@ -30,19 +21,16 @@ export default function Cart({ isOpen, onClose }: CartProps) {
 
   return (
     <>
-      {/* Overlay */}
       <div
         className={`cart-overlay ${isOpen ? 'cart-overlay--visible' : ''}`}
         onClick={onClose}
         aria-hidden="true"
       />
 
-      {/* Sidebar */}
       <aside
         className={`cart-sidebar ${isOpen ? 'cart-sidebar--open' : ''}`}
         aria-label="Carrito de compras"
       >
-        {/* Header */}
         <div className="cart-header">
           <div className="cart-header-left">
             <h2 className="cart-title">Tu pedido</h2>
@@ -52,28 +40,20 @@ export default function Cart({ isOpen, onClose }: CartProps) {
               </span>
             )}
           </div>
-          <button
-            className="cart-close"
-            onClick={onClose}
-            aria-label="Cerrar carrito"
-          >
+          <button className="cart-close" onClick={onClose} aria-label="Cerrar carrito">
             <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-              <path
-                d="M4 4l12 12M16 4L4 16"
-                stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"
-              />
+              <path d="M4 4l12 12M16 4L4 16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
             </svg>
           </button>
         </div>
 
-        {/* Cuerpo */}
         <div className="cart-body">
           {items.length === 0 ? (
             <div className="cart-empty">
               <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" opacity="0.25" />
-                <path d="M16 20h16l-2 12H18L16 20z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.45" />
-                <path d="M20 20v-4a4 4 0 018 0v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.45" />
+                <circle cx="24" cy="24" r="20" stroke="currentColor" strokeWidth="1.5" opacity="0.25"/>
+                <path d="M16 20h16l-2 12H18L16 20z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" opacity="0.45"/>
+                <path d="M20 20v-4a4 4 0 018 0v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.45"/>
               </svg>
               <p>Tu carrito está vacío</p>
               <span>Agrega items del menú</span>
@@ -84,9 +64,7 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                 <li key={menuItem.id} className="cart-item">
                   <div className="cart-item-info">
                     <span className="cart-item-name">{menuItem.name}</span>
-                    {notes && (
-                      <span className="cart-item-notes">{notes}</span>
-                    )}
+                    {notes && <span className="cart-item-notes">{notes}</span>}
                     <span className="cart-item-price">
                       ${(menuItem.price * quantity).toFixed(2)}
                     </span>
@@ -94,40 +72,24 @@ export default function Cart({ isOpen, onClose }: CartProps) {
                       ${menuItem.price.toFixed(2)} c/u
                     </span>
                   </div>
-
                   <div className="cart-item-controls">
-                    {/* Reducir cantidad */}
-                    <button
-                      className="qty-btn"
-                      onClick={() => updateQty(menuItem.id, quantity - 1)}
-                      aria-label={`Reducir cantidad de ${menuItem.name}`}
-                    >
+                    <button className="qty-btn" onClick={() => updateQty(menuItem.id, quantity - 1)}
+                      aria-label={`Reducir cantidad de ${menuItem.name}`}>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M2 7h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        <path d="M2 7h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                       </svg>
                     </button>
-
                     <span className="qty-value">{quantity}</span>
-
-                    {/* Aumentar cantidad */}
-                    <button
-                      className="qty-btn"
-                      onClick={() => updateQty(menuItem.id, quantity + 1)}
-                      aria-label={`Aumentar cantidad de ${menuItem.name}`}
-                    >
+                    <button className="qty-btn" onClick={() => updateQty(menuItem.id, quantity + 1)}
+                      aria-label={`Aumentar cantidad de ${menuItem.name}`}>
                       <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                        <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                        <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
                       </svg>
                     </button>
-
-                    {/* Eliminar */}
-                    <button
-                      className="cart-item-remove"
-                      onClick={() => removeItem(menuItem.id)}
-                      aria-label={`Eliminar ${menuItem.name}`}
-                    >
+                    <button className="cart-item-remove" onClick={() => removeItem(menuItem.id)}
+                      aria-label={`Eliminar ${menuItem.name}`}>
                       <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-                        <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                        <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                       </svg>
                     </button>
                   </div>
@@ -137,20 +99,17 @@ export default function Cart({ isOpen, onClose }: CartProps) {
           )}
         </div>
 
-        {/* Footer con total y checkout */}
         {items.length > 0 && (
           <div className="cart-footer">
             <div className="cart-total-row">
               <span className="cart-total-label">Total estimado</span>
               <span className="cart-total-value">${total.toFixed(2)}</span>
             </div>
-            <p className="cart-total-note">
-              El total final se confirma en caja
-            </p>
+            <p className="cart-total-note">El total final se confirma en caja</p>
             <button className="cart-checkout-btn" onClick={handleCheckout}>
               Ir al checkout
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <path d="M4 9h10M10 5l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+                <path d="M4 9h10M10 5l4 4-4 4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
               </svg>
             </button>
           </div>

@@ -9,13 +9,13 @@
 button { cursor: pointer; font-family: inherit; border: none; background: none; }
 
 :root {
-  --a-bg:          #070711;
-  --a-surface:     #0d0d1e;
-  --a-surface-2:   #121224;
-  --a-border:      rgba(255,255,255,0.08);
-  --a-text:        #f0ece6;
-  --a-muted:       #6b6775;
-  --a-dim:         #2e3050;
+  --a-bg:          #F5F5F7;
+  --a-surface:     #FFFFFF;
+  --a-surface-2:   #F0F0F5;
+  --a-border:      rgba(28,20,16,0.07);
+  --a-text:        #1D1D1F;
+  --a-muted:       #98989D;
+  --a-dim:         #D1D1D8;
 
   --a-indigo:      #818cf8;
   --a-indigo-soft: rgba(129,140,248,0.12);
@@ -72,7 +72,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   font-size: 14px; color: var(--a-muted);
   transition: all 0.2s; text-align: left; width: 100%;
 }
-.admin-nav-item:hover { background: rgba(255,255,255,0.05); color: var(--a-text); }
+.admin-nav-item:hover { background: rgba(28,20,16,0.04); color: var(--a-text); }
 .admin-nav-item--active {
   background: var(--a-indigo-soft);
   color: var(--a-indigo);
@@ -158,12 +158,12 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .admin-btn-ghost {
   display: inline-flex; align-items: center; gap: 6px;
   padding: 9px 16px; border-radius: 10px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(28,20,16,0.04);
   border: 1px solid var(--a-border);
   color: var(--a-muted); font-size: 13px;
   transition: color 0.2s, background 0.2s;
 }
-.admin-btn-ghost:hover { color: var(--a-text); background: rgba(255,255,255,0.09); }
+.admin-btn-ghost:hover { color: var(--a-text); background: rgba(28,20,16,0.08); }
 
 .admin-btn-danger {
   display: inline-flex; align-items: center; gap: 6px;
@@ -178,17 +178,17 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 .admin-btn-sm {
   padding: 5px 12px; border-radius: 8px; font-size: 12px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--a-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--a-border);
   color: var(--a-muted); transition: color 0.2s, background 0.2s;
 }
-.admin-btn-sm:hover { color: var(--a-text); background: rgba(255,255,255,0.09); }
+.admin-btn-sm:hover { color: var(--a-text); background: rgba(28,20,16,0.08); }
 .admin-btn-sm.admin-btn-danger { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.2); color: var(--a-red); }
 .admin-btn-sm.admin-btn-danger:hover { background: rgba(248,113,113,0.2); }
 
 .admin-refresh-btn {
   display: flex; align-items: center; gap: 6px;
   padding: 8px 14px; border-radius: 9px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--a-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--a-border);
   color: var(--a-muted); font-size: 13px;
   transition: color 0.2s, background 0.2s;
 }
@@ -207,7 +207,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 /* ── Inputs ── */
 .admin-input {
   width: 100%; padding: 9px 12px; border-radius: 9px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(28,20,16,0.04);
   border: 1px solid var(--a-border);
   color: var(--a-text); font-family: 'Satoshi', sans-serif; font-size: 14px;
   outline: none; transition: border-color 0.2s;
@@ -218,17 +218,17 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 
 .admin-select {
   padding: 9px 12px; border-radius: 9px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--a-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--a-border);
   color: var(--a-text); font-family: 'Satoshi', sans-serif; font-size: 14px;
   outline: none; cursor: pointer;
 }
-.admin-select option { background: #0d0d1e; }
+.admin-select option { background: #FFFFFF; }
 
 /* Toggle switch */
 .admin-toggle {
   width: 40px; height: 22px; border-radius: 100px; flex-shrink: 0;
-  background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(28,20,16,0.10);
+  border: 1px solid rgba(28,20,16,0.10);
   position: relative; transition: background 0.2s;
 }
 .admin-toggle::after {
@@ -250,7 +250,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .admin-search-wrap {
   display: flex; align-items: center; gap: 8px; flex: 1; min-width: 200px;
-  background: rgba(255,255,255,0.05); border: 1px solid var(--a-border);
+  background: rgba(28,20,16,0.04); border: 1px solid var(--a-border);
   border-radius: 9px; padding: 0 12px;
   color: var(--a-muted);
 }
@@ -278,15 +278,23 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 }
 .admin-form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 14px; align-items: end;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-items: start;
 }
-.admin-field { display: flex; flex-direction: column; gap: 5px; }
-.admin-field label { font-size: 12px; color: var(--a-muted); font-weight: 500; }
-.admin-field--full { grid-column: 1 / -1; }
-.admin-field--toggle { flex-direction: row; align-items: center; gap: 10px; }
-.admin-field--toggle label { min-width: 80px; }
-.field-hint { font-size: 11px; color: var(--a-dim); }
+
+.admin-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.admin-input,
+.admin-select {
+  width: 100%;
+  min-height: 44px;
+}
 
 .admin-form-actions {
   display: flex; justify-content: flex-end; gap: 10px;
@@ -310,13 +318,16 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   text-transform: uppercase; letter-spacing: 0.4px;
   border-bottom: 1px solid var(--a-border);
 }
+
 .admin-list-row {
-  display: flex; align-items: center; gap: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
   padding: 12px 16px;
-  border-bottom: 1px solid rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(28,20,16,0.03);
   transition: background 0.15s;
 }
-.admin-list-row:hover { background: rgba(255,255,255,0.03); }
+.admin-list-row:hover { background: rgba(28,20,16,0.03); }
 .row-inactive { opacity: 0.5; }
 .admin-empty-msg { padding: 24px; text-align: center; color: var(--a-dim); font-size: 14px; }
 
@@ -341,7 +352,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
   color: var(--a-indigo); font-weight: 800; font-size: 13px;
   display: flex; align-items: center; justify-content: center;
 }
-.alr-item-img { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; background: rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
+.alr-item-img { width: 36px; height: 36px; border-radius: 8px; overflow: hidden; background: rgba(28,20,16,0.04); display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; }
 .alr-img { width: 100%; height: 100%; object-fit: cover; }
 
 /* Role badges */
@@ -408,19 +419,18 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 /* ── Settings ── */
 .settings-sections { display: flex; flex-direction: column; gap: 18px; }
 .settings-preview {
-  background: rgba(255,255,255,0.03); border: 1px solid var(--a-border);
+  background: rgba(28,20,16,0.03); border: 1px solid var(--a-border);
   border-radius: 10px; padding: 14px;
 }
-.settings-preview-title { font-size: 12px; color: var(--a-muted); margin-bottom: 10px; }
-.settings-preview-rows { display: flex; flex-direction: column; gap: 6px; }
-.spr-row { display: flex; justify-content: space-between; font-size: 13px; color: var(--a-muted); }
-.spr-total { font-weight: 700; color: var(--a-text); font-size: 14px; padding-top: 6px; border-top: 1px solid var(--a-border); }
+.spr-row { display: flex; justify-content: space-between; font-size: 13px; color: #1E293B; }
+.spr-total { font-weight: 700; color: #1D1D1F; font-size: 14px; padding-top: 6px; border-top: 1px solid var(--a-border); }
 .spr-tip { color: var(--a-yellow); font-size: 12px; }
+.settings-preview-title { font-size: 12px; color: #475569; margin-bottom: 10px; }
 
 /* ── Modal confirm ── */
 .admin-confirm-modal {
   background: var(--a-surface);
-  border: 1px solid rgba(255,255,255,0.12);
+  border: 1px solid rgba(28,20,16,0.10);
   border-radius: 16px; padding: 24px;
   width: 100%; max-width: 400px;
   display: flex; flex-direction: column; gap: 14px;
@@ -486,7 +496,7 @@ button { cursor: pointer; font-family: inherit; border: none; background: none; 
 .nbc-track {
   height: 10px;
   border-radius: 100px;
-  background: rgba(255,255,255,0.06);
+  background: rgba(28,20,16,0.05);
   overflow: hidden;
 }
 .nbc-fill {

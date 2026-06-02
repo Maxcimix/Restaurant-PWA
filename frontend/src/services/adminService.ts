@@ -30,20 +30,39 @@ export const getReport = (filter: ReportFilter): Promise<ReportData> => {
 };
 
 // ── CRUD Categorías ──────────────────────────────────────────
+
+function toAdminCategory(raw: AdminCategory & { skip_kitchen?: boolean }): AdminCategory {
+  return {
+    ...raw,
+    skip_kitchen:         raw.skip_kitchen ?? false,
+    requires_preparation: !(raw.skip_kitchen ?? false),
+  };
+}
+
+function toCategoryPayload(data: Partial<CategoryForm>): Record<string, unknown> {
+  const payload: Record<string, unknown> = { ...data };
+  if ('requires_preparation' in data) {
+    payload.skip_kitchen = !data.requires_preparation;
+    delete payload.requires_preparation;
+  }
+  return payload;
+}
+
 export const getAdminCategories = (): Promise<AdminCategory[]> =>
-  apiFetch<AdminCategory[]>('/admin/menu/categories');
+  apiFetch<AdminCategory[]>('/admin/menu/categories').then((list) => list.map(toAdminCategory));
 
 export const createCategory = (data: CategoryForm): Promise<AdminCategory> =>
   apiFetch<AdminCategory>('/admin/menu/categories', {
     method: 'POST',
-    body:   JSON.stringify(data),
-  });
+    body:   JSON.stringify(toCategoryPayload(data)),
+  }).then(toAdminCategory);
 
 export const updateCategory = (id: string, data: Partial<CategoryForm>): Promise<AdminCategory> =>
   apiFetch<AdminCategory>(`/admin/menu/categories/${id}`, {
     method: 'PUT',
-    body:   JSON.stringify(data),
-  });
+    body:   JSON.stringify(toCategoryPayload(data)),
+  }).then(toAdminCategory);
+
 
 export const deleteCategory = (id: string): Promise<void> =>
   apiFetch<void>(`/admin/menu/categories/${id}`, { method: 'DELETE' });

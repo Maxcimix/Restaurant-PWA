@@ -26,6 +26,8 @@ router.get('/tables/waiting-bill', ...isCaja, getWaitingBillTables);
 
 // Liberar mesa (ruta específica antes que /:id)
 router.patch('/tables/:id/release', ...isCaja, releaseTable);
+// El mesero también puede liberar la mesa una vez cobrado
+router.patch('/tables/:id/release-waiter', authenticate, releaseTable);
 
 // Generar cuenta detallada
 router.post('/orders/:id/bill', ...isCaja, generateBill);

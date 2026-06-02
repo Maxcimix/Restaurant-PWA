@@ -1,23 +1,29 @@
 // ============================================================
-// backend/src/controllers/adminController.ts  —  Fase 8
-//
-// Controladores del Admin Dashboard.
-// Todos requieren rol 'admin' (verificado en la ruta).
+// backend/src/controllers/adminController.ts  —  Fase 8 + Fase 11
 // ============================================================
 
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
-import pool   from '../utils/db';
+import pool from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';
+import redis from '../utils/redis';
+
+// ── Helper: limpiar caché del menú ──────────────────────────
+async function clearMenuCache() {
+  try {
+    await redis.del('menu:categories');
+    const keys = await redis.keys('menu:items:*');
+    if (keys.length > 0) await redis.del(keys);
+  } catch { /* Redis no es crítico */ }
+}
 
 // ── GET /api/admin/stats ─────────────────────────────────────
 export async function getStats(_req: Request, res: Response) {
   try {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
     const [ordersR, topTableR, topItemR, topWaiterR, byHourR, byCatR, bySourceR] =
       await Promise.all([
-        // Órdenes del día
         pool.query(`
           SELECT
             COUNT(*) FILTER (WHERE status = 'completed')  AS orders,
@@ -27,8 +33,6 @@ export async function getStats(_req: Request, res: Response) {
           FROM orders
           WHERE DATE(created_at AT TIME ZONE 'America/Bogota') = $1
         `, [today]),
-
-        // Mesa top
         pool.query(`
           SELECT t.number, t.section, COUNT(o.id) AS orders
           FROM orders o JOIN tables t ON o.table_id = t.id
@@ -37,8 +41,6 @@ export async function getStats(_req: Request, res: Response) {
           GROUP BY t.id, t.number, t.section
           ORDER BY orders DESC LIMIT 1
         `, [today]),
-
-        // Ítem más pedido
         pool.query(`
           SELECT mi.name, mc.name AS category, SUM(oi.quantity) AS qty
           FROM order_items oi
@@ -50,8 +52,6 @@ export async function getStats(_req: Request, res: Response) {
           GROUP BY mi.id, mi.name, mc.name
           ORDER BY qty DESC LIMIT 1
         `, [today]),
-
-        // Mesero top
         pool.query(`
           SELECT u.first_name || ' ' || u.last_name AS name, COUNT(o.id) AS orders
           FROM orders o JOIN users u ON o.waiter_id = u.id
@@ -60,8 +60,6 @@ export async function getStats(_req: Request, res: Response) {
           GROUP BY u.id, u.first_name, u.last_name
           ORDER BY orders DESC LIMIT 1
         `, [today]),
-
-        // Por hora
         pool.query(`
           SELECT
             EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Bogota') AS hour,
@@ -72,8 +70,6 @@ export async function getStats(_req: Request, res: Response) {
             AND status = 'completed'
           GROUP BY hour ORDER BY hour
         `, [today]),
-
-        // Por categoría
         pool.query(`
           SELECT mc.name AS category, SUM(oi.quantity) AS qty,
                  COALESCE(SUM(oi.price * oi.quantity), 0) AS revenue
@@ -85,8 +81,6 @@ export async function getStats(_req: Request, res: Response) {
             AND o.status = 'completed'
           GROUP BY mc.id, mc.name ORDER BY revenue DESC
         `, [today]),
-
-        // Por fuente
         pool.query(`
           SELECT source, COUNT(*) AS orders, COALESCE(SUM(total), 0) AS revenue
           FROM orders
@@ -97,23 +91,23 @@ export async function getStats(_req: Request, res: Response) {
       ]);
 
     const today_data = ordersR.rows[0];
-    const topTable   = topTableR.rows[0] ?? { number: null, section: null, orders: 0 };
-    const topItem    = topItemR.rows[0]  ?? { name: null, category: null, qty: 0 };
-    const topWaiter  = topWaiterR.rows[0] ?? { name: null, orders: 0 };
+    const topTable = topTableR.rows[0] ?? { number: null, section: null, orders: 0 };
+    const topItem = topItemR.rows[0] ?? { name: null, category: null, qty: 0 };
+    const topWaiter = topWaiterR.rows[0] ?? { name: null, orders: 0 };
 
     return res.json({
       today: {
-        orders:           parseInt(today_data.orders),
-        revenue:          parseFloat(today_data.revenue),
-        avgTicket:        parseFloat(today_data.avg_ticket),
-        cancelledOrders:  parseInt(today_data.cancelled),
+        orders: parseInt(today_data.orders),
+        revenue: parseFloat(today_data.revenue),
+        avgTicket: parseFloat(today_data.avg_ticket),
+        cancelledOrders: parseInt(today_data.cancelled),
       },
-      topTable:  { number: topTable.number, section: topTable.section, orders: parseInt(topTable.orders) },
-      topItem:   { name: topItem.name, category: topItem.category, qty: parseInt(topItem.qty ?? '0') },
+      topTable: { number: topTable.number, section: topTable.section, orders: parseInt(topTable.orders) },
+      topItem: { name: topItem.name, category: topItem.category, qty: parseInt(topItem.qty ?? '0') },
       topWaiter: { name: topWaiter.name, orders: parseInt(topWaiter.orders ?? '0') },
-      byHour:    byHourR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
-      byCategory:byCatR.rows.map((r) => ({ category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
-      bySource:  bySourceR.rows.map((r) => ({ source: r.source, orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byHour: byHourR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byCategory: byCatR.rows.map((r) => ({ category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
+      bySource: bySourceR.rows.map((r) => ({ source: r.source, orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
     });
   } catch (err) {
     console.error('[admin/stats]', err);
@@ -140,7 +134,6 @@ export async function getReports(req: Request, res: Response) {
         FROM orders o
         WHERE DATE(o.created_at AT TIME ZONE 'America/Bogota') BETWEEN $1 AND $2 ${sourceFilter}
       `, [from, to]),
-
       pool.query(`
         SELECT DATE(created_at AT TIME ZONE 'America/Bogota') AS date,
                COUNT(*) AS orders,
@@ -151,7 +144,6 @@ export async function getReports(req: Request, res: Response) {
           AND status = 'completed' ${sourceFilter}
         GROUP BY date ORDER BY date
       `, [from, to]),
-
       pool.query(`
         SELECT mi.name, mc.name AS category,
                SUM(oi.quantity) AS qty,
@@ -165,7 +157,6 @@ export async function getReports(req: Request, res: Response) {
         GROUP BY mi.id, mi.name, mc.name
         ORDER BY qty DESC LIMIT 10
       `, [from, to]),
-
       pool.query(`
         SELECT u.first_name || ' ' || u.last_name AS name,
                COUNT(o.id) AS orders,
@@ -177,17 +168,15 @@ export async function getReports(req: Request, res: Response) {
         GROUP BY u.id, u.first_name, u.last_name
         ORDER BY revenue DESC
       `, [from, to]),
-
       pool.query(`
         SELECT EXTRACT(HOUR FROM created_at AT TIME ZONE 'America/Bogota') AS hour,
                COUNT(*) AS orders,
                COALESCE(SUM(total), 0) AS revenue
-        FROM orders
-        WHERE DATE(created_at AT TIME ZONE 'America/Bogota') BETWEEN $1 AND $2
-          AND status = 'completed' ${sourceFilter}
+        FROM orders o
+        WHERE DATE(o.created_at AT TIME ZONE 'America/Bogota') BETWEEN $1 AND $2
+          AND o.status = 'completed' ${sourceFilter}
         GROUP BY hour ORDER BY hour
       `, [from, to]),
-
       pool.query(`
         SELECT
           ROUND(AVG(time_to_kitchen_secs)  / 60.0, 1) AS to_kitchen,
@@ -204,20 +193,20 @@ export async function getReports(req: Request, res: Response) {
     return res.json({
       from, to,
       summary: {
-        totalOrders:    parseInt(s.total_orders),
-        totalRevenue:   parseFloat(s.total_revenue),
-        totalTips:      parseFloat(s.total_tips),
-        avgTicket:      parseFloat(s.avg_ticket),
+        totalOrders: parseInt(s.total_orders),
+        totalRevenue: parseFloat(s.total_revenue),
+        totalTips: parseFloat(s.total_tips),
+        avgTicket: parseFloat(s.avg_ticket),
         completionRate: parseFloat(s.completion_rate ?? '0'),
       },
-      byDay:       byDayR.rows.map((r) => ({ date: r.date, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), tips: parseFloat(r.tips) })),
-      topItems:    topItemsR.rows.map((r) => ({ name: r.name, category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
-      topWaiters:  topWaitersR.rows.map((r) => ({ name: r.name, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), avgTime: r.avg_time ? parseFloat(r.avg_time) : null })),
-      peakHours:   peakR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
+      byDay: byDayR.rows.map((r) => ({ date: r.date, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), tips: parseFloat(r.tips) })),
+      topItems: topItemsR.rows.map((r) => ({ name: r.name, category: r.category, qty: parseInt(r.qty), revenue: parseFloat(r.revenue) })),
+      topWaiters: topWaitersR.rows.map((r) => ({ name: r.name, orders: parseInt(r.orders), revenue: parseFloat(r.revenue), avgTime: r.avg_time ? parseFloat(r.avg_time) : null })),
+      peakHours: peakR.rows.map((r) => ({ hour: parseInt(r.hour), orders: parseInt(r.orders), revenue: parseFloat(r.revenue) })),
       avgTimings: {
-        toKitchen:   t.to_kitchen   ? parseFloat(t.to_kitchen)   : null,
-        preparation: t.preparation  ? parseFloat(t.preparation)  : null,
-        total:       t.total        ? parseFloat(t.total)        : null,
+        toKitchen: t.to_kitchen ? parseFloat(t.to_kitchen) : null,
+        preparation: t.preparation ? parseFloat(t.preparation) : null,
+        total: t.total ? parseFloat(t.total) : null,
       },
     });
   } catch (err) {
@@ -232,6 +221,7 @@ export async function getAdminCategories(_req: Request, res: Response) {
     const result = await pool.query(`
       SELECT mc.id, mc.name, mc.description, mc.icon, mc.image_url,
              mc.position, mc.is_active, mc.created_at,
+             COALESCE(mc.skip_kitchen, false) AS skip_kitchen,
              COUNT(mi.id) AS items_count
       FROM menu_categories mc
       LEFT JOIN menu_items mi ON mi.category_id = mc.id
@@ -247,14 +237,15 @@ export async function getAdminCategories(_req: Request, res: Response) {
 
 export async function createCategory(req: Request, res: Response) {
   try {
-    const { name, description, icon, position, is_active } = req.body;
+    const { name, description, icon, position, is_active, skip_kitchen } = req.body;
     if (!name) return res.status(400).json({ message: 'El nombre es requerido' });
 
     const result = await pool.query(
-      `INSERT INTO menu_categories (name, description, icon, position, is_active)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [name, description ?? null, icon ?? null, position ?? 99, is_active ?? true]
+      `INSERT INTO menu_categories (name, description, icon, position, is_active, skip_kitchen)
+       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+      [name, description ?? null, icon ?? null, position ?? 99, is_active ?? true, skip_kitchen ?? false]
     );
+    await clearMenuCache();
     return res.status(201).json({ ...result.rows[0], items_count: 0 });
   } catch (err) {
     console.error('[admin/categories/create]', err);
@@ -265,17 +256,18 @@ export async function createCategory(req: Request, res: Response) {
 export async function updateCategory(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { name, description, icon, position, is_active } = req.body;
+    const { name, description, icon, position, is_active, skip_kitchen } = req.body;
 
     const result = await pool.query(
       `UPDATE menu_categories
-       SET name=$1, description=$2, icon=$3, position=$4, is_active=$5
-       WHERE id=$6 RETURNING *`,
-      [name, description ?? null, icon ?? null, position ?? 99, is_active ?? true, id]
+       SET name=$1, description=$2, icon=$3, position=$4, is_active=$5, skip_kitchen=$6
+       WHERE id=$7 RETURNING *`,
+      [name, description ?? null, icon ?? null, position ?? 99, is_active ?? true, skip_kitchen ?? false, id]
     );
     if (!result.rows[0]) return res.status(404).json({ message: 'Categoría no encontrada' });
 
     const countR = await pool.query('SELECT COUNT(*) FROM menu_items WHERE category_id=$1', [id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], items_count: parseInt(countR.rows[0].count) });
   } catch (err) {
     console.error('[admin/categories/update]', err);
@@ -291,6 +283,7 @@ export async function deleteCategory(req: Request, res: Response) {
       return res.status(400).json({ message: 'No se puede eliminar: tiene ítems asociados. Elimínalos primero.' });
     }
     await pool.query('DELETE FROM menu_categories WHERE id=$1', [id]);
+    await clearMenuCache();
     return res.status(204).send();
   } catch (err) {
     console.error('[admin/categories/delete]', err);
@@ -325,15 +318,14 @@ export async function getAdminItems(req: Request, res: Response) {
 
 export async function createMenuItem(req: Request, res: Response) {
   try {
-    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock } = req.body;
-    if (!name || !category_id || !price) return res.status(400).json({ message: 'Faltan campos requeridos' });
-
+    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url } = req.body;
     const result = await pool.query(
-      `INSERT INTO menu_items (category_id, name, description, price, preparation_time, is_available, is_out_of_stock)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available ?? true, is_out_of_stock ?? false]
+      `INSERT INTO menu_items (category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available ?? true, is_out_of_stock ?? false, image_url ?? null]
     );
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
+    await clearMenuCache();
     return res.status(201).json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: 0 });
   } catch (err) {
     console.error('[admin/items/create]', err);
@@ -344,19 +336,19 @@ export async function createMenuItem(req: Request, res: Response) {
 export async function updateMenuItem(req: Request, res: Response) {
   try {
     const { id } = req.params;
-    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock } = req.body;
-
+    const { category_id, name, description, price, preparation_time, is_available, is_out_of_stock, image_url } = req.body;
     const result = await pool.query(
       `UPDATE menu_items
        SET category_id=$1, name=$2, description=$3, price=$4,
-           preparation_time=$5, is_available=$6, is_out_of_stock=$7, updated_at=NOW()
-       WHERE id=$8 RETURNING *`,
-      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available, is_out_of_stock, id]
+           preparation_time=$5, is_available=$6, is_out_of_stock=$7,
+           image_url=$8, updated_at=NOW()
+       WHERE id=$9 RETURNING *`,
+      [category_id, name, description ?? null, price, preparation_time ?? 10, is_available, is_out_of_stock, image_url ?? null, id]
     );
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
-
-    const catR   = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
+    const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [category_id]);
     const countR = await pool.query('SELECT COUNT(*) FROM order_items WHERE menu_item_id=$1', [id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], category_name: catR.rows[0]?.name, orders_count: parseInt(countR.rows[0].count) });
   } catch (err) {
     console.error('[admin/items/update]', err);
@@ -367,6 +359,7 @@ export async function updateMenuItem(req: Request, res: Response) {
 export async function deleteMenuItem(req: Request, res: Response) {
   try {
     await pool.query('DELETE FROM menu_items WHERE id=$1', [req.params.id]);
+    await clearMenuCache();
     return res.status(204).send();
   } catch (err) {
     console.error('[admin/items/delete]', err);
@@ -384,6 +377,7 @@ export async function toggleItemAvailability(req: Request, res: Response) {
     );
     if (!result.rows[0]) return res.status(404).json({ message: 'Ítem no encontrado' });
     const catR = await pool.query('SELECT name FROM menu_categories WHERE id=$1', [result.rows[0].category_id]);
+    await clearMenuCache();
     return res.json({ ...result.rows[0], category_name: catR.rows[0]?.name });
   } catch (err) {
     console.error('[admin/items/toggle]', err);
@@ -423,7 +417,7 @@ export async function createAdminUser(req: Request, res: Response) {
     const exists = await pool.query('SELECT id FROM users WHERE email=$1', [email.toLowerCase()]);
     if (exists.rows[0]) return res.status(409).json({ message: 'El email ya está registrado' });
 
-    const hash   = await bcrypt.hash(password, 10);
+    const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
       `INSERT INTO users (email, password_hash, first_name, last_name, role_id, phone)
        VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, email, first_name, last_name, is_active, created_at, phone`,
@@ -502,25 +496,20 @@ export async function resetUserPassword(req: AuthRequest, res: Response) {
 }
 
 // ── Configuración ────────────────────────────────────────────
-// Guarda configuración en una tabla simple key-value (si existe)
-// Si no existe la tabla, retorna defaults sin error.
 export async function getSettings(_req: Request, res: Response) {
   try {
-    // Intentar leer de tabla settings si existe
-    const result = await pool.query(`
-      SELECT key, value FROM settings
-    `).catch(() => ({ rows: [] as Array<{ key: string; value: string }> }));
-
+    const result = await pool.query(`SELECT key, value FROM settings`)
+      .catch(() => ({ rows: [] as Array<{ key: string; value: string }> }));
     const settings: Record<string, unknown> = {
       name: 'RestaurantPWA', address: '', phone: '',
-      tax_rate: 8, tip_suggestion: 10, currency: 'USD', timezone: 'America/Bogota',
+      tax_rate: 0, tip_suggestion: 0, currency: 'COP', timezone: 'America/Bogota',
     };
     for (const row of result.rows) {
       settings[row.key] = isNaN(Number(row.value)) ? row.value : Number(row.value);
     }
     return res.json(settings);
   } catch {
-    return res.json({ name:'RestaurantPWA', address:'', phone:'', tax_rate:8, tip_suggestion:10, currency:'USD', timezone:'America/Bogota' });
+    return res.json({ name: 'RestaurantPWA', address: '', phone: '', tax_rate: 0, tip_suggestion: 0, currency: 'COP', timezone: 'America/Bogota' });
   }
 }
 
@@ -528,7 +517,6 @@ export async function saveSettings(req: Request, res: Response) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    // Crear tabla si no existe
     await client.query(`
       CREATE TABLE IF NOT EXISTS settings (
         key   VARCHAR(100) PRIMARY KEY,

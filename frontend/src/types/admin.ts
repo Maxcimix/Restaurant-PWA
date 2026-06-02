@@ -1,9 +1,5 @@
 // ============================================================
-// frontend/src/types/admin.ts  —  Fase 8: Admin Dashboard
-//
-// Tipos exclusivos del módulo admin.
-// No modifica types/order.ts, types/table.ts ni types/menu.ts.
-// Los tipos de MenuItem y MenuCategory se importan de menu.ts.
+// frontend/src/types/admin.ts  —  Fase 8 + Modo de operación
 // ============================================================
 
 // ── KPIs del dashboard ───────────────────────────────────────
@@ -53,7 +49,7 @@ export interface SourceStat {
 
 // ── Reporte filtrable ────────────────────────────────────────
 export interface ReportFilter {
-  from:   string;  // YYYY-MM-DD
+  from:   string;
   to:     string;
   source?: 'autoservicio' | 'waiter' | 'all';
 }
@@ -73,7 +69,7 @@ export interface ReportData {
   topWaiters:   WaiterStat[];
   peakHours:    HourlyStat[];
   avgTimings: {
-    toKitchen:  number | null;  // minutos promedio
+    toKitchen:   number | null;
     preparation: number | null;
     total:       number | null;
   };
@@ -101,17 +97,18 @@ export interface WaiterStat {
 }
 
 // ── Gestión de menú ─────────────────────────────────────────
-// (extiende los tipos públicos de menu.ts para el CRUD admin)
 export interface AdminCategory {
-  id:          string;
-  name:        string;
-  description: string | null;
-  icon:        string | null;
-  image_url:   string | null;
-  position:    number;
-  is_active:   boolean;
-  items_count: number;
-  created_at:  string;
+  id:                   string;
+  name:                 string;
+  description:          string | null;
+  icon:                 string | null;
+  image_url:            string | null;
+  position:             number;
+  is_active:            boolean;
+  skip_kitchen:         boolean;
+  requires_preparation: boolean;
+  items_count:          number;
+  created_at:           string;
 }
 
 export interface AdminMenuItem {
@@ -131,11 +128,12 @@ export interface AdminMenuItem {
 }
 
 export interface CategoryForm {
-  name:        string;
-  description: string;
-  icon:        string;
-  position:    number;
-  is_active:   boolean;
+  name:                 string;
+  description:          string;
+  icon:                 string;
+  position:             number;
+  is_active:            boolean;
+  requires_preparation: boolean;
 }
 
 export interface MenuItemForm {
@@ -146,6 +144,7 @@ export interface MenuItemForm {
   preparation_time: number;
   is_available:     boolean;
   is_out_of_stock:  boolean;
+  image_url?: string;
 }
 
 // ── Gestión de usuarios ──────────────────────────────────────
@@ -172,12 +171,14 @@ export interface UserForm {
 }
 
 // ── Configuración del restaurante ────────────────────────────
+// Nota: operation_mode NO está aquí porque lo fija el equipo
+// técnico en el .env al desplegar, no el admin del restaurante.
 export interface RestaurantSettings {
   name:           string;
   address:        string;
   phone:          string;
-  tax_rate:       number;   // porcentaje: 8
-  tip_suggestion: number;   // porcentaje: 10
-  currency:       string;   // 'USD', 'COP', etc.
+  tax_rate:       number;
+  tip_suggestion: number;
+  currency:       string;
   timezone:       string;
 }

@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAppStore } from '../store/appStore';
 import type { Role } from '../store/appStore';
 import '../styles/role.select.css';
+import { Lock } from 'lucide-react';
 
 interface RoleDef {
   id: Role;
@@ -146,7 +147,7 @@ export default function RoleSelectPage() {
                 <div className="rc-top-row">
                   <h3 className="rc-title">{role.label}</h3>
                   {role.needsLogin
-                    ? <span className="rc-badge login-req">🔒 Login</span>
+                    ? <span className="rc-badge login-req"><Lock size={11}/> Login</span>
                     : <span className="rc-badge direct">Acceso directo</span>
                   }
                 </div>

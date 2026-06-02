@@ -14,7 +14,7 @@ export type TableStatus =
   | 'occupied'     // Con clientes y orden activa
   | 'reserved'     // Reservada (sin clientes aún)
   | 'waiting_bill' // Clientes esperando la cuenta
-
+  | 'paid';
 /** Mesa enriquecida con datos de la orden activa (JOIN en backend) */
 export interface Table {
   id:              string;
@@ -43,9 +43,16 @@ export interface WaiterOrderPayload {
     quantity:             number;
     special_instructions: string;
   }>;
-  payment_method: 'efectivo' | 'tarjeta' | 'transferencia';
+  payment_method?: string | null;  // Opcional al crear — se define al solicitar cuenta
   notes:          string;
   waiter_id?:     string;        // UUID del mesero (se inyecta desde auth)
+}
+
+/** Payload que envía el mesero cuando el cliente pide la cuenta */
+export interface RequestBillPayload {
+  payment_method: 'efectivo' | 'tarjeta_debito' | 'tarjeta_credito' | 'transferencia';
+  tip?:           number;
+  notes?:         string;
 }
 
 /** Payload para actualizar estado de mesa */
@@ -65,11 +72,13 @@ export interface WaiterCartItem {
   notes:       string; // instrucciones especiales por item
 }
 
-/** Estado del carrito del mesero para una mesa específica */
+/** Estado del carrito del mesero para una mesa específica.
+ *  paymentMethod YA NO está aquí: se captura en BillRequestModal
+ *  cuando el cliente pide la cuenta, no al tomar el pedido.
+ */
 export interface WaiterCart {
   tableId:     string;
   tableNumber: number;
   items:       WaiterCartItem[];
-  paymentMethod: 'efectivo' | 'tarjeta' | 'transferencia';
   orderNotes:  string;
 }

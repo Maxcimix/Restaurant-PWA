@@ -1,3 +1,4 @@
+import { formatCOP } from '../../utils/constants';
 // ============================================================
 // frontend/src/pages/admin/Dashboard.tsx  →  /admin/dashboard
 //
@@ -12,7 +13,7 @@ import { useAdminStore } from '../../store/adminStore';
 import { getAdminStats } from '../../services/adminService';
 import '../../styles/admin.css';
 
-const fmtMoney = (v: number) => `$${v.toFixed(2)}`;
+const fmtMoney = (v: number) => formatCOP(v);
 
 // ── Barra horizontal simple en CSS puro ─────────────────────
 function BarChart({
@@ -191,8 +192,7 @@ export default function Dashboard() {
                     <div key={s.source} className="source-row">
                       <div className="source-dot" style={{ background: COLORS[i % COLORS.length] }} />
                       <span className="source-name">
-                        {s.source === 'autoservicio' ? '📱 Autoservicio'
-                          : s.source === 'waiter' ? '👤 Mesero' : s.source}
+                        {s.source === 'autoservicio' ? 'Autoservicio' : s.source === 'waiter' ? 'Mesero' : s.source}
                       </span>
                       <span className="source-orders">{s.orders} órdenes</span>
                       <span className="source-revenue">{fmtMoney(s.revenue)}</span>

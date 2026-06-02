@@ -1,59 +1,37 @@
-// ============================================================
-// frontend/src/pages/mesero/TakeOrder.tsx
-// Ruta: /mesero/orden/:tableId
-//
-// Pantalla de toma de orden del mesero. Diseño profesional
-// orientado a uso frecuente y rápido en tablet.
-//
-// FLUJO:
-//   1. Recibe tableId desde la URL (viene de TableDashboard)
-//   2. Carga menú via useMenu() (hook existente)
-//   3. Mesero agrega items al carrito (waiterStore.cart)
-//   4. Confirma la orden → POST /api/orders con source:'waiter'
-//   5. Backend registra waiter_id, table_id, actualiza mesa a 'occupied'
-//   6. Redirige de vuelta al TableDashboard
-//
-// DIFERENCIAS con ClientMenu.tsx (autoservicio):
-//   - Tiene búsqueda de items por nombre
-//   - Panel lateral del carrito siempre visible (no modal)
-//   - Notas por item inline (sin modal extra)
-//   - Sin animaciones de FAB ni badge — interfaz profesional
-//   - Requiere autenticación (mesero)
-// ============================================================
-
+import { formatCOP } from '../../utils/constants';
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useNavigate, useParams }  from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useAppStore }             from '../../store/appStore';
 import { useWaiterStore }          from '../../store/waiterStore';
 import { useMenu }                 from '../../hooks/useMenu';
-import { createWaiterOrder, getTables } from '../../services/waiterService';
+import { useStockAvailability }    from '../../hooks/useStockAvailability';
+import {
+  createWaiterOrder, getTables,
+  modifyWaiterOrder, getOrderDetail,
+} from '../../services/waiterService';
 import { ApiError }                from '../../services/api';
 import type { MenuItem }           from '../../types/menu';
 import '../../styles/takeorder.css';
 
-type PaymentMethod = 'efectivo' | 'tarjeta' | 'transferencia';
-
-const PAYMENT_OPTIONS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'efectivo',      label: 'Efectivo',      icon: '💵' },
-  { value: 'tarjeta',       label: 'Tarjeta',        icon: '💳' },
-  { value: 'transferencia', label: 'Transferencia',  icon: '📲' },
-];
-
 export default function TakeOrder() {
   const { tableId }  = useParams<{ tableId: string }>();
   const navigate     = useNavigate();
-  const { user }     = useAppStore();
+  const location     = useLocation();
+  const modifyOrderId = (location.state as { modifyOrderId?: string } | null)?.modifyOrderId ?? null;
+  const isModifying  = !!modifyOrderId;
+  const { user, brand } = useAppStore();
 
   const {
     tables, setTables,
     cart, initCart,
     addToCart, removeFromCart, updateCartQty, updateItemNotes,
-    setPaymentMethod, setOrderNotes,
+    setOrderNotes,
     clearCart, getCartTotal, getCartItemCount,
     updateTableStatus,
   } = useWaiterStore();
 
   const { categories, items, activeCategory, selectCategory, loading, loadingItems, hasCategories } = useMenu();
+  const { availability } = useStockAvailability();
 
   const [search,        setSearch]        = useState('');
   const [submitting,    setSubmitting]    = useState(false);
@@ -61,26 +39,36 @@ export default function TakeOrder() {
   const [editingNotes,  setEditingNotes]  = useState<string | null>(null);
   const searchRef = useRef<HTMLInputElement>(null);
 
-  // Obtener datos de la mesa desde el store
   const table = tables.find((t) => t.id === tableId);
 
-  // ── Inicializar carrito para esta mesa ─────────────────────
   useEffect(() => {
     if (!tableId) return;
-
-    // Si no hay datos de la mesa en el store, cargarlos
     if (!table) {
       getTables().then(setTables).catch(() => {});
     }
-
-    // Iniciar carrito si no existe o es de otra mesa
-    if (!cart || cart.tableId !== tableId) {
-      const tableNumber = table?.number ?? 0;
-      initCart(tableId, tableNumber);
+    if (isModifying && modifyOrderId) {
+      initCart(tableId, table?.number ?? 0);
+      getOrderDetail(modifyOrderId)
+        .then((order) => {
+          if (!order.items) return;
+          order.items.forEach((item) => {
+            addToCart({
+              menuItemId: item.menu_item_id,
+              name:       item.name,
+              price:      parseFloat(item.price as unknown as string),
+              notes:      item.special_instructions ?? '',
+            });
+            if (item.quantity > 1) {
+              updateCartQty(item.menu_item_id, item.quantity);
+            }
+          });
+        })
+        .catch(() => {});
+    } else if (!cart || cart.tableId !== tableId) {
+      initCart(tableId, table?.number ?? 0);
     }
   }, [tableId]); // eslint-disable-line
 
-  // Filtrar items por búsqueda
   const filteredItems = search.trim()
     ? items.filter((i) =>
         i.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -88,7 +76,6 @@ export default function TakeOrder() {
       )
     : items;
 
-  // ── Agregar item al carrito ────────────────────────────────
   const handleAdd = useCallback((item: MenuItem) => {
     addToCart({
       menuItemId: item.id,
@@ -98,36 +85,37 @@ export default function TakeOrder() {
     });
   }, [addToCart]);
 
-  // ── Enviar orden al backend ────────────────────────────────
   async function handleSubmit() {
     if (!cart || cart.items.length === 0 || !tableId) return;
-
     setSubmitting(true);
     setSubmitError(null);
-
     try {
-      await createWaiterOrder({
-        table_id:       tableId,
-        source:         'waiter',
-        items: cart.items.map((i) => ({
-          menu_item_id:         i.menuItemId,
-          quantity:             i.quantity,
-          special_instructions: i.notes,
-        })),
-        payment_method: cart.paymentMethod,
-        notes:          cart.orderNotes,
-        waiter_id:      user?.id,
-      });
-
-      // Actualizar mesa a occupied en el store local
-      updateTableStatus(tableId, 'occupied');
+      const mappedItems = cart.items.map((i) => ({
+        menu_item_id:         i.menuItemId,
+        quantity:             i.quantity,
+        special_instructions: i.notes,
+      }));
+      if (isModifying && modifyOrderId) {
+        await modifyWaiterOrder(modifyOrderId, mappedItems);
+      } else {
+        await createWaiterOrder({
+          table_id:  tableId,
+          source:    'waiter',
+          items:     mappedItems,
+          notes:     cart.orderNotes,
+          waiter_id: user?.id,
+        });
+        updateTableStatus(tableId, 'occupied');
+      }
       clearCart();
       navigate('/mesero/dashboard');
     } catch (e) {
       setSubmitError(
         e instanceof ApiError
           ? e.message
-          : 'Error al enviar la orden. Intenta de nuevo.'
+          : isModifying
+            ? 'Error al modificar la orden. Intenta de nuevo.'
+            : 'Error al enviar la orden. Intenta de nuevo.'
       );
     } finally {
       setSubmitting(false);
@@ -136,11 +124,10 @@ export default function TakeOrder() {
 
   const cartTotal     = getCartTotal();
   const cartItemCount = getCartItemCount();
-  const tax           = cartTotal * 0.08;
+  const tax           = cartTotal * (brand.taxRate / 100);
 
   return (
     <div className="takeorder-root">
-      {/* ── Header ── */}
       <header className="to-header">
         <button
           type="button"
@@ -153,25 +140,21 @@ export default function TakeOrder() {
           </svg>
           Mesas
         </button>
-
         <div className="to-header-center">
           <h1 className="to-title">
-            Mesa {table?.number ?? '...'}
+            {isModifying ? 'Modificar orden · ' : ''}Mesa {table?.number ?? '...'}
           </h1>
           <span className="to-capacity">
             {table?.capacity ?? '—'} personas · {table?.section ?? ''}
           </span>
         </div>
-
         <div className="to-header-right">
           <span className="to-waiter">{user?.name ?? 'Mesero'}</span>
         </div>
       </header>
 
       <div className="to-body">
-        {/* ── Panel izquierdo: Menú ── */}
         <section className="to-menu-panel" aria-label="Menú">
-          {/* Búsqueda */}
           <div className="to-search-wrap">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
               <circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.4"/>
@@ -196,14 +179,11 @@ export default function TakeOrder() {
             )}
           </div>
 
-          {/* Tabs de categorías */}
           {!search && (
             <nav className="to-cat-tabs" aria-label="Categorías">
               {loading ? (
                 <div className="to-cats-skeleton">
-                  {[1,2,3,4].map((i) => (
-                    <div key={i} className="to-cat-skel" />
-                  ))}
+                  {[1,2,3,4].map((i) => <div key={i} className="to-cat-skel" />)}
                 </div>
               ) : (
                 categories.map((cat) => (
@@ -221,18 +201,13 @@ export default function TakeOrder() {
             </nav>
           )}
 
-          {/* Grid de items */}
           <div className="to-items-area">
             {loadingItems ? (
               <div className="to-items-loading">
-                {[1,2,3,4,5,6].map((i) => (
-                  <div key={i} className="to-item-skel" />
-                ))}
+                {[1,2,3,4,5,6].map((i) => <div key={i} className="to-item-skel" />)}
               </div>
             ) : !hasCategories ? (
-              <div className="to-empty">
-                <p>El menú aún no tiene categorías</p>
-              </div>
+              <div className="to-empty"><p>El menú aún no tiene categorías</p></div>
             ) : filteredItems.length === 0 ? (
               <div className="to-empty">
                 <p>{search ? `Sin resultados para "${search}"` : 'Sin items en esta categoría'}</p>
@@ -240,11 +215,13 @@ export default function TakeOrder() {
             ) : (
               <ul className="to-items-grid" role="list">
                 {filteredItems.map((item) => {
+                  const isOutOfStock = item.is_out_of_stock || !(availability[item.id]?.available ?? true);
+                  const stockReason  = availability[item.id]?.reason;
                   const inCart = cart?.items.find((c) => c.menuItemId === item.id);
                   return (
                     <li
                       key={item.id}
-                      className={`to-item ${item.is_out_of_stock ? 'to-item--oos' : ''}`}
+                      className={`to-item ${isOutOfStock ? 'to-item--oos' : ''}`}
                     >
                       <div className="to-item-info">
                         <span className="to-item-name">{item.name}</span>
@@ -252,16 +229,18 @@ export default function TakeOrder() {
                           <span className="to-item-desc">{item.description}</span>
                         )}
                         <span className="to-item-price">
-                          ${parseFloat(item.price as unknown as string).toFixed(2)}
+                          {formatCOP(parseFloat(item.price as unknown as string))}
                         </span>
                         {item.preparation_time && (
                           <span className="to-item-time">~{item.preparation_time}min</span>
+                        )}
+                        {isOutOfStock && stockReason && (
+                          <span className="to-item-oos-reason">{stockReason}</span>
                         )}
                       </div>
 
                       <div className="to-item-actions">
                         {inCart ? (
-                          /* Controles de cantidad */
                           <div className="to-qty-ctrl">
                             <button
                               type="button"
@@ -282,10 +261,11 @@ export default function TakeOrder() {
                             type="button"
                             className="to-add-btn"
                             onClick={() => handleAdd(item)}
-                            disabled={item.is_out_of_stock}
+                            disabled={isOutOfStock}
                             aria-label={`Agregar ${item.name}`}
+                            title={isOutOfStock ? stockReason : undefined}
                           >
-                            {item.is_out_of_stock ? 'Agotado' : '+'}
+                            {isOutOfStock ? 'Agotado' : '+'}
                           </button>
                         )}
                       </div>
@@ -297,7 +277,6 @@ export default function TakeOrder() {
           </div>
         </section>
 
-        {/* ── Panel derecho: Carrito ── */}
         <aside className="to-cart-panel" aria-label="Carrito">
           <div className="to-cart-header">
             <h2 className="to-cart-title">Orden actual</h2>
@@ -306,7 +285,6 @@ export default function TakeOrder() {
             </span>
           </div>
 
-          {/* Items del carrito */}
           {!cart || cart.items.length === 0 ? (
             <div className="to-cart-empty">
               <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
@@ -326,7 +304,7 @@ export default function TakeOrder() {
                     </div>
                     <div className="to-ci-right">
                       <span className="to-ci-price">
-                        ${(item.price * item.quantity).toFixed(2)}
+                        {formatCOP(item.price * item.quantity)}
                       </span>
                       <button
                         type="button"
@@ -336,7 +314,6 @@ export default function TakeOrder() {
                       >×</button>
                     </div>
                   </div>
-                  {/* Notas inline por item */}
                   {editingNotes === item.menuItemId ? (
                     <input
                       type="text"
@@ -362,7 +339,6 @@ export default function TakeOrder() {
             </ul>
           )}
 
-          {/* Notas de la orden completa */}
           <div className="to-order-notes">
             <label className="to-notes-label" htmlFor="order-notes">
               Notas de la orden
@@ -378,50 +354,30 @@ export default function TakeOrder() {
             />
           </div>
 
-          {/* Método de pago */}
-          <div className="to-payment">
-            <span className="to-payment-label">Método de pago</span>
-            <div className="to-payment-options">
-              {PAYMENT_OPTIONS.map(({ value, label, icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`to-payment-opt ${cart?.paymentMethod === value ? 'to-payment-opt--active' : ''}`}
-                  onClick={() => setPaymentMethod(value)}
-                >
-                  {icon} {label}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Totales */}
           {cart && cart.items.length > 0 && (
             <div className="to-totals">
               <div className="to-total-row">
                 <span>Subtotal</span>
-                <span>${cartTotal.toFixed(2)}</span>
+                <span>{formatCOP(cartTotal)}</span>
               </div>
               <div className="to-total-row to-total-tax">
-                <span>IVA (8%)</span>
-                <span>${tax.toFixed(2)}</span>
+                <span>IVA ({brand.taxRate}%)</span>
+                <span>{formatCOP(tax)}</span>
               </div>
               <div className="to-total-divider" />
               <div className="to-total-row to-total-final">
                 <span>Total est.</span>
-                <span>${(cartTotal + tax).toFixed(2)}</span>
+                <span>{formatCOP(cartTotal + tax)}</span>
               </div>
             </div>
           )}
 
-          {/* Error de envío */}
           {submitError && (
             <div className="to-submit-error" role="alert">
               {submitError}
             </div>
           )}
 
-          {/* Botón de enviar */}
           <button
             type="button"
             className="to-submit-btn"
@@ -435,7 +391,7 @@ export default function TakeOrder() {
                 <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
                   <path d="M3 9l4 4 8-8" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
                 </svg>
-                Enviar orden a caja
+                {isModifying ? 'Guardar cambios' : 'Enviar a cocina'}
               </>
             )}
           </button>

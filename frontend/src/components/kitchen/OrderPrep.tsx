@@ -31,9 +31,9 @@ interface Props {
 }
 
 const SOURCE_LABEL: Record<string, string> = {
-  autoservicio: '📱 Autoservicio',
-  waiter:       '👤 Mesero',
-  kiosk:        '🖥️ Kiosk',
+  autoservicio: ' Autoservicio',
+  waiter:       ' Mesero',
+  kiosk:        ' Kiosk',
 };
 
 const OrderPrep = memo(function OrderPrep({
@@ -91,7 +91,7 @@ const OrderPrep = memo(function OrderPrep({
 
       {/* ── Lista de items ── */}
       <ul className="op-items" role="list">
-        {(order.items ?? []).map((item) => {
+  {(order.items ?? []).filter((item) => !(item as any).skip_kitchen).map((item) => {
           const itemCompleted = order.completedItemIds.has(item.id);
           const itemPrice = parseFloat(item.price as unknown as string);
 
@@ -134,21 +134,20 @@ const OrderPrep = memo(function OrderPrep({
       </ul>
 
       {/* ── Barra de progreso (solo in_preparation) ── */}
-      {isInPreparation && (order.items?.length ?? 0) > 0 && (
+      {isInPreparation && (order.items?.filter((i) => !(i as any).skip_kitchen).length ?? 0) > 0 && (
         <div className="op-progress" role="progressbar"
           aria-valuenow={order.completedItemIds.size}
-          aria-valuemax={order.items?.length ?? 0}
-          aria-label="Progreso de preparación">
+aria-valuemax={order.items?.filter((i) => !(i as any).skip_kitchen).length ?? 0}          aria-label="Progreso de preparación">
           <div className="op-progress-bar">
             <div
               className="op-progress-fill"
               style={{
-                width: `${(order.completedItemIds.size / (order.items?.length ?? 1)) * 100}%`
+                width: `${(order.completedItemIds.size / (order.items?.filter((i) => !(i as any).skip_kitchen).length ?? 1)) * 100}%`
               }}
             />
           </div>
           <span className="op-progress-text">
-            {order.completedItemIds.size} / {order.items?.length ?? 0} items
+            {order.completedItemIds.size} / {order.items?.filter((i) => !(i as any).skip_kitchen).length ?? 0} items
           </span>
         </div>
       )}
@@ -186,7 +185,7 @@ const OrderPrep = memo(function OrderPrep({
               <circle cx="10" cy="10" r="8" stroke="currentColor" strokeWidth="1.8"/>
               <path d="M6 10l3 3 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
             </svg>
-            {order.allItemsCompleted ? 'Marcar listo ✓' : `Faltan ${(order.items?.length ?? 0) - order.completedItemIds.size} items`}
+            {order.allItemsCompleted ? 'listo ' : `Faltan ${(order.items?.filter((i) => !(i as any).skip_kitchen).length ?? 0) - order.completedItemIds.size} items`}
           </button>
         )}
 

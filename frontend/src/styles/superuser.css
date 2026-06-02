@@ -1,0 +1,193 @@
+/* ============================================================
+   SUPERUSUARIO — Fase 11
+   Usa var(--color-primary/secondary/accent) definidos en appStore
+   ============================================================ */
+
+/* ── Layout ── */
+.su-root {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: 100svh;
+  background: #f5f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Sidebar ── */
+.su-sidebar {
+  background: #fff;
+  border-right: 1px solid #e5e5e7;
+  display: flex; flex-direction: column;
+  position: sticky; top: 0; height: 100svh; overflow-y: auto;
+  padding: 18px 12px;
+}
+
+.su-logo {
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 18px; margin-bottom: 10px;
+  border-bottom: 1px solid #f0f0f0;
+}
+.su-logo-img { width: 36px; height: 36px; border-radius: 8px; object-fit: cover; }
+.su-logo-placeholder {
+  width: 36px; height: 36px; border-radius: 8px;
+  background: rgba(249,115,22,0.08); display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+}
+.su-brand-name { font-size: 13px; font-weight: 700; color: #1d1d1f; margin: 0; }
+.su-role-badge {
+  font-size: 11px; color: var(--color-primary, #f97316);
+  font-weight: 600; margin: 0;
+}
+
+.su-nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
+.su-nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 9px 12px; border-radius: 10px; border: none;
+  background: none; cursor: pointer; font-size: 13px;
+  color: #6e6e73; text-align: left; width: 100%;
+  transition: background 0.15s, color 0.15s;
+}
+.su-nav-item:hover { background: #f5f5f7; color: #1d1d1f; }
+.su-nav-item--active {
+  background: rgba(249,115,22,0.08);
+  color: var(--color-primary, #f97316); font-weight: 600;
+}
+
+.su-footer {
+  border-top: 1px solid #f0f0f0; padding-top: 14px;
+  display: flex; align-items: center; gap: 8px;
+}
+.su-user { flex: 1; min-width: 0; }
+.su-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: rgba(249,115,22,0.12);
+  color: var(--color-primary, #f97316); font-weight: 800; font-size: 13px;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.su-user-name  { font-size: 12px; font-weight: 600; color: #1d1d1f; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.su-user-email { font-size: 10px; color: #98989d; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.su-logout {
+  background: none; border: none; cursor: pointer;
+  color: #98989d; padding: 6px; border-radius: 8px;
+  transition: color 0.2s;
+}
+.su-logout:hover { color: #ef4444; }
+
+/* ── Contenido ── */
+.su-content { overflow-y: auto; }
+.su-page { max-width: 900px; margin: 0 auto; padding: 28px 24px 60px; }
+
+.su-page-header { margin-bottom: 24px; }
+.su-page-title { font-size: 26px; font-weight: 900; letter-spacing: -0.5px; color: #1d1d1f; margin: 0; }
+.su-page-sub   { font-size: 13px; color: #98989d; margin: 4px 0 0; }
+
+.su-loading { display: flex; justify-content: center; padding: 60px; }
+.su-spinner {
+  width: 30px; height: 30px; border-radius: 50%;
+  border: 3px solid rgba(249,115,22,0.15);
+  border-top-color: var(--color-primary, #f97316);
+  animation: suSpin 0.8s linear infinite;
+}
+@keyframes suSpin { to { transform: rotate(360deg); } }
+
+/* ── Cards ── */
+.su-card {
+  background: #fff; border: 1px solid #e5e5e7;
+  border-radius: 14px; padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+}
+.su-card-title { font-size: 14px; font-weight: 700; color: #1d1d1f; margin: 0; }
+
+/* ── Form ── */
+.su-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.su-field { display: flex; flex-direction: column; gap: 5px; }
+.su-field label { font-size: 12px; color: #6e6e73; font-weight: 500; }
+.su-field--full { grid-column: 1 / -1; }
+
+.su-input, .su-select {
+  padding: 9px 12px; border-radius: 9px;
+  border: 1px solid #e5e5e7; background: #fafafa;
+  font-family: inherit; font-size: 14px; color: #1d1d1f;
+  outline: none; transition: border-color 0.2s;
+}
+.su-input:focus, .su-select:focus { border-color: var(--color-primary, #f97316); }
+.su-hint { font-size: 11px; color: #98989d; margin: 0; }
+
+/* ── Colores ── */
+.su-colors-grid { display: flex; flex-direction: column; gap: 14px; }
+.su-color-field { display: flex; flex-direction: column; gap: 5px; }
+.su-color-field label { font-size: 12px; color: #6e6e73; font-weight: 500; }
+.su-color-row { display: flex; align-items: center; gap: 10px; }
+.su-color-input { width: 44px; height: 36px; border-radius: 9px; border: 1px solid #e5e5e7; padding: 2px; cursor: pointer; }
+.su-hex-input { flex: 1; font-family: 'SF Mono', monospace; font-size: 13px; }
+
+/* ── Logo upload ── */
+.su-logo-upload {
+  position: relative; height: 140px; border-radius: 12px;
+  border: 2px dashed #e5e5e7; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  overflow: hidden; transition: border-color 0.2s;
+}
+.su-logo-upload:hover { border-color: var(--color-primary, #f97316); }
+.su-logo-preview { width: 100%; height: 100%; object-fit: contain; padding: 8px; }
+.su-logo-placeholder-big { display: flex; flex-direction: column; align-items: center; gap: 8px; color: #98989d; font-size: 13px; }
+.su-upload-overlay {
+  position: absolute; inset: 0; background: rgba(255,255,255,0.8);
+  display: flex; align-items: center; justify-content: center;
+}
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
+
+/* ── Botón principal ── */
+.su-btn-primary {
+  padding: 12px 24px; border-radius: 12px; border: none;
+  background: var(--color-primary, #f97316); color: #fff;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  cursor: pointer; transition: opacity 0.2s, transform 0.15s;
+}
+.su-btn-primary:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+.su-btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Alertas ── */
+.su-error   { background: rgba(239,68,68,0.07); border: 1px solid rgba(239,68,68,0.2); color: #dc2626; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.su-success { background: rgba(34,197,94,0.07); border: 1px solid rgba(34,197,94,0.2); color: #16a34a; border-radius: 10px; padding: 10px 14px; font-size: 13px; }
+.su-warning-banner { background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25); color: #92400e; border-radius: 10px; padding: 12px 16px; font-size: 13px; margin-bottom: 18px; }
+
+/* ── Modo de operación ── */
+.su-mode-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+.su-mode-card {
+  position: relative; padding: 18px 14px; border-radius: 14px;
+  border: 2px solid #e5e5e7; background: #fff; cursor: pointer;
+  text-align: left; display: flex; flex-direction: column; gap: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.su-mode-card:hover { border-color: var(--color-primary, #f97316); }
+.su-mode-card--active { border-color: var(--color-primary, #f97316); box-shadow: 0 0 0 3px rgba(249,115,22,0.1); }
+.su-mode-icon  { font-size: 28px; }
+.su-mode-check { position: absolute; top: 10px; right: 10px; height: 18px; }
+.su-mode-title { font-size: 14px; font-weight: 700; color: #1d1d1f; margin: 0; }
+.su-mode-desc  { font-size: 12px; color: #6e6e73; margin: 0; }
+.su-mode-detail{ font-size: 11px; color: #98989d; margin: 0; }
+
+/* ── Preview layout ── */
+.su-two-col { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+.su-form-col { display: flex; flex-direction: column; gap: 16px; }
+.su-preview-col { position: sticky; top: 20px; }
+.su-preview-card { background: #fff; border: 1px solid #e5e5e7; border-radius: 14px; overflow: hidden; }
+.su-preview-header { display: flex; align-items: center; gap: 10px; padding: 10px 14px; }
+
+/* ── Tax preview ── */
+.su-tax-preview { background: #fafafa; border-radius: 10px; padding: 14px; }
+.su-tax-rows { display: flex; flex-direction: column; gap: 6px; }
+.su-tax-row { display: flex; justify-content: space-between; font-size: 13px; color: #6e6e73; }
+.su-tax-total { font-weight: 700; color: #1d1d1f; font-size: 14px; border-top: 1px solid #e5e5e7; padding-top: 6px; margin-top: 2px; }
+
+/* ── Badges de categoría (Módulo 2) ── */
+.kitchen-badge-yes { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; background: rgba(34,197,94,0.1); color: #16a34a; border: 1px solid rgba(34,197,94,0.2); }
+.kitchen-badge-no  { display: inline-block; padding: 2px 8px; border-radius: 100px; font-size: 11px; font-weight: 600; background: rgba(249,115,22,0.1); color: #ea580c; border: 1px solid rgba(249,115,22,0.2); }
+
+@media (max-width: 800px) {
+  .su-root       { grid-template-columns: 1fr; }
+  .su-sidebar    { display: none; }
+  .su-two-col    { grid-template-columns: 1fr; }
+  .su-mode-grid  { grid-template-columns: 1fr; }
+  .su-form-grid  { grid-template-columns: 1fr; }
+}

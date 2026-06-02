@@ -47,7 +47,7 @@ interface WaiterState {
   removeFromCart:  (menuItemId: string) => void;
   updateCartQty:   (menuItemId: string, qty: number) => void;
   updateItemNotes: (menuItemId: string, notes: string) => void;
-  setPaymentMethod:(method: WaiterCart['paymentMethod']) => void;
+  // setPaymentMethod eliminado: el pago se captura al solicitar cuenta (BillRequestModal)
   setOrderNotes:   (notes: string) => void;
   clearCart:       () => void;
 
@@ -97,8 +97,7 @@ export const useWaiterStore = create<WaiterState>()((set, get) => ({
         tableId,
         tableNumber,
         items:         [],
-        paymentMethod: 'efectivo',
-        orderNotes:    '',
+        orderNotes:    '',   // paymentMethod se captura al solicitar cuenta, no aquí
       },
     }),
 
@@ -171,10 +170,6 @@ export const useWaiterStore = create<WaiterState>()((set, get) => ({
       };
     }),
 
-  setPaymentMethod: (method) =>
-    set((s) => ({
-      cart: s.cart ? { ...s.cart, paymentMethod: method } : null,
-    })),
 
   setOrderNotes: (notes) =>
     set((s) => ({

@@ -1,21 +1,31 @@
 // ============================================================
 // backend/src/controllers/orderController.ts
 //
-// FIX 1: Al crear una orden con source='waiter', la mesa
-//   pasa automáticamente a 'occupied' en la misma transacción.
-//   Antes el mesero tenía que cambiarla manualmente.
+// CAMBIOS DE FLUJO (Solicitud de cuenta separada):
 //
-// FIX 3: El broadcast de order:new incluye el tableId en el
-//   payload y se hace SIN targetOrderId para que cocina lo
-//   reciba inmediatamente (isGlobalRole). Antes el KDS filtraba
-//   con 'sent_to_kitchen' pero las órdenes del mesero llegan
-//   como 'pending_payment' — el KDS debe ignorarlas hasta que
-//   caja las envíe. El broadcast correcto es al cambiar status.
+//  createOrder:
+//    - payment_method OPCIONAL para source='waiter' (se define cuando
+//      el cliente pide la cuenta, no al tomar el pedido).
+//
+//  updateOrderStatus:
+//    - Al marcar 'delivered', la mesa queda en 'occupied', NO en
+//      'waiting_bill'. El cliente puede seguir en la mesa; la cuenta
+//      se solicita explícitamente con el nuevo endpoint.
+//
+//  requestBill (NUEVO):
+//    - PATCH /api/orders/:id/request-bill
+//    - El mesero la llama cuando el cliente pide la cuenta.
+//    - Recibe payment_method, tip, notas. Actualiza la orden y cambia
+//      la mesa a 'waiting_bill'. Caja interviene a partir de aquí.
+//
 // ============================================================
 
 import { Request, Response } from 'express';
 import pool from '../utils/db';
 import { broadcast } from '../websocket/handlers';
+import redis from '../utils/redis';
+import { InventoryValidationService } from '../services/InventoryValidationService';
+import { StockDeductionService }      from '../services/StockDeductionService';
 
 type OrderSource = 'autoservicio' | 'waiter' | 'kiosk';
 
@@ -36,7 +46,7 @@ export async function createOrder(req: Request, res: Response) {
     const { table_id, items, payment_method, notes, source = 'autoservicio', waiter_id } = req.body as {
       table_id:  string | null;
       items:     OrderItemInput[];
-      payment_method: string;
+      payment_method?: string | null;   // Opcional para source='waiter': se define al solicitar cuenta
       notes?:    string;
       source?:   string;
       waiter_id?: string;
@@ -93,12 +103,33 @@ export async function createOrder(req: Request, res: Response) {
       }
     }
 
+    // ── VALIDACIÓN DE STOCK ─────────────────────────────────
+    // Verifica bodega cocina (platos preparados) o principal (productos directos)
+    const validation = await InventoryValidationService.validateOrderAvailability(
+      items.map((i) => ({ menu_item_id: i.menu_item_id, quantity: i.quantity })),
+      client
+    );
+
+    if (!validation.valid) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        message:          'Stock insuficiente para completar el pedido',
+        unavailableItems: validation.unavailableItems,
+      });
+    }
+
+    // Obtener tasa de IVA desde configuración (no hardcodeado)
+    const taxCfg = await client.query(
+      `SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1`
+    );
+    const taxRate = parseFloat(taxCfg.rows[0]?.value ?? '0') / 100;
+
     // Calcular totales en backend
     let subtotal = 0;
     for (const item of items) {
       subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
     }
-    const tax   = parseFloat((subtotal * 0.08).toFixed(2));
+    const tax   = parseFloat((subtotal * taxRate).toFixed(2));
     const total = parseFloat((subtotal + tax).toFixed(2));
 
     // Generar order_number atómico
@@ -106,11 +137,32 @@ export async function createOrder(req: Request, res: Response) {
     const orderNumber = `ORD-${String(seqResult.rows[0].seq).padStart(4, '0')}`;
 
     // Insertar la orden con waiter_id si viene del mesero
+    // FLUJO MESERO: la orden va directo a cocina (sent_to_kitchen).
+    // FLUJO AUTOSERVICIO: primero pasa por caja (pending_payment).
+    // Verificar si TODOS los ítems son skip_kitchen
+    // Si todos son skip_kitchen → el mesero los entrega él mismo, no va a cocina
+    let allSkipKitchen = false;
+    if (source === 'waiter') {
+      const skipCheck = await client.query(
+        `SELECT BOOL_AND(COALESCE(mc.skip_kitchen, false)) AS all_skip
+         FROM menu_items mi
+         LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+         WHERE mi.id = ANY($1::uuid[])`,
+        [itemIds]
+      );
+      allSkipKitchen = skipCheck.rows[0]?.all_skip ?? false;
+    }
+
+    const initialStatus   = source === 'waiter'
+      ? (allSkipKitchen ? 'ready_for_pickup' : 'sent_to_kitchen')
+      : 'pending_payment';
+    const sentToKitchenAt = (source === 'waiter' && !allSkipKitchen) ? 'NOW()' : 'NULL';
+
     const orderResult = await client.query(
       `INSERT INTO orders
          (order_number, table_id, waiter_id, subtotal, tax, total, status,
-          payment_method, payment_status, source, notes)
-       VALUES ($1,$2,$3,$4,$5,$6,'pending_payment',$7,'pending',$8,$9)
+          payment_method, payment_status, source, notes, sent_to_kitchen_at)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending',$9,$10,${sentToKitchenAt})
        RETURNING *`,
       [
         orderNumber,
@@ -119,22 +171,26 @@ export async function createOrder(req: Request, res: Response) {
         subtotal.toFixed(2),
         tax.toFixed(2),
         total.toFixed(2),
-        payment_method,
+        initialStatus,
+        source === 'waiter' ? null : (payment_method ?? null),   // waiter: sin método todavía
         source,
         notes ?? null,
       ]
     );
     const order = orderResult.rows[0];
 
-    // Insertar items
+    // Insertar items y recopilar IDs para el descuento de stock
+    const orderItemIds: Record<string, string> = {};
     for (const item of items) {
-      const mi = menuMap.get(item.menu_item_id)!;
-      await client.query(
+      const mi  = menuMap.get(item.menu_item_id)!;
+      const oiR = await client.query(
         `INSERT INTO order_items
            (order_id, menu_item_id, quantity, price, special_instructions, status)
-         VALUES ($1,$2,$3,$4,$5,'pending')`,
+         VALUES ($1,$2,$3,$4,$5,'pending')
+         RETURNING id`,
         [order.id, item.menu_item_id, item.quantity, mi.price, item.special_instructions ?? null]
       );
+      orderItemIds[item.menu_item_id] = oiR.rows[0].id as string;
     }
 
     // FIX 1: Si la orden es del mesero, marcar la mesa como 'occupied'
@@ -146,6 +202,22 @@ export async function createOrder(req: Request, res: Response) {
       );
     }
 
+    // ── DESCUENTO ATÓMICO DE STOCK ──────────────────────────
+    const deductionItems = items.map((i) => ({
+      menu_item_id:   i.menu_item_id,
+      menu_item_name: menuMap.get(i.menu_item_id)!.name as string,
+      quantity:       i.quantity,
+      order_item_id:  orderItemIds[i.menu_item_id],
+    }));
+
+    const userId = (req as Request & { user?: { id: string } }).user?.id ?? null;
+
+    const deduction = await StockDeductionService.deductStockForOrder(
+      deductionItems,
+      userId,
+      client
+    );
+
     await client.query(
       `INSERT INTO audit_logs (action, resource_type, resource_id)
        VALUES ('order_created','order',$1)`,
@@ -154,18 +226,44 @@ export async function createOrder(req: Request, res: Response) {
 
     await client.query('COMMIT');
 
-    // FIX 3: El broadcast de order:new va SIN targetOrderId para que
-    // caja y cocina (isGlobalRole) lo reciban. El payload incluye tableId
-    // para que el mesero pueda actualizar el estado de su mesa.
+    // Broadcast items agotados DESPUÉS del commit
+    if (deduction.newlyOutOfStock.length > 0) {
+      StockDeductionService.broadcastOutOfStock(deduction.newlyOutOfStock);
+    }
+
+    // Obtener items CON nombres ANTES del broadcast para incluirlos en el payload.
+    // Antes este query estaba después del broadcast, por lo que order:new llegaba
+    // al panel monitor de caja sin items y los cards aparecían vacíos.
+const itemsResult = await pool.query(
+  `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+          oi.special_instructions, oi.status, oi.delivered_at,
+          mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+   FROM order_items oi 
+   JOIN menu_items mi ON oi.menu_item_id = mi.id
+   LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE oi.order_id = $1`,
+  [order.id]
+);
+    // Broadcast order:new con items incluidos para que el monitor de caja
+    // y la cocina tengan la información de platos desde el primer momento.
     broadcast({
       type: 'order:new',
       payload: {
         orderId:     order.id,
         orderNumber: order.order_number,
         tableId:     order.table_id,
+        tableNumber: (order as { table_number?: number }).table_number ?? null,
+        waiterName:  (order as { waiter_name?: string }).waiter_name ?? null,
+        subtotal:    parseFloat(order.subtotal),
+        tax:         parseFloat(order.tax),
         total:       parseFloat(order.total),
         status:      order.status,
         source:      order.source,
+        items: itemsResult.rows.map((i: { name: string; quantity: number; special_instructions: string | null }) => ({
+          name:     i.name,
+          quantity: i.quantity,
+          special_instructions: i.special_instructions,
+        })),
       },
     });
 
@@ -183,15 +281,8 @@ export async function createOrder(req: Request, res: Response) {
         },
       });
     }
-
-    const itemsResult = await pool.query(
-      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
-              oi.special_instructions, oi.status, mi.name
-       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
-       WHERE oi.order_id = $1`,
-      [order.id]
-    );
-
+    // Invalidar cache de órdenes activas para que la caja vea la nueva orden
+    await redis.del('orders:active').catch(() => null);
     return res.status(201).json({ ...order, items: itemsResult.rows });
   } catch (err) {
     await client.query('ROLLBACK');
@@ -217,10 +308,13 @@ export async function getOrderById(req: Request, res: Response) {
     if (!orderResult.rows[0]) {
       return res.status(404).json({ message: 'Orden no encontrada' });
     }
-    const itemsResult = await pool.query(
+const itemsResult = await pool.query(
       `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
-              oi.special_instructions, oi.status, mi.name
-       FROM order_items oi JOIN menu_items mi ON oi.menu_item_id = mi.id
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
        WHERE oi.order_id = $1`,
       [id]
     );
@@ -244,6 +338,12 @@ export async function updateOrderStatus(req: Request, res: Response) {
     ];
     if (!allowed.includes(status)) {
       return res.status(400).json({ message: `Estado inválido: ${status}` });
+    }
+
+    // El mesero solo puede marcar como 'delivered' — nada más
+    const userRole = (req as import('express').Request & { user?: { role: string } }).user?.role;
+    if (userRole === 'mesero' && status !== 'delivered') {
+      return res.status(403).json({ message: 'El mesero solo puede marcar órdenes como entregadas' });
     }
 
     const timestamps: Record<string, string> = {
@@ -270,6 +370,27 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
     const updated = result.rows[0];
 
+    // Cuando el mesero entrega el pedido → la mesa queda en 'occupied'.
+    // El cliente sigue en la mesa; puede pedir más cosas o pedir la cuenta.
+    // La mesa pasa a 'waiting_bill' SOLO cuando el mesero llama a
+    // PATCH /api/orders/:id/request-bill (cliente pidió la cuenta).
+    if (status === 'delivered' && updated.table_id) {
+      await pool.query(
+        `UPDATE tables SET status = 'occupied' WHERE id = $1`,
+        [updated.table_id]
+      );
+      broadcast({
+        type: 'table:status',
+        payload: {
+          tableId:     updated.table_id,
+          status:      'occupied',
+          orderStatus: 'delivered',
+          orderId:     updated.id,
+          orderNumber: updated.order_number,
+        },
+      });
+    }
+
     // FIX 3: broadcast order:status incluye tableId para que el mesero
     // pueda actualizar el badge de estado en la tarjeta de la mesa
     broadcast({
@@ -289,7 +410,8 @@ export async function updateOrderStatus(req: Request, res: Response) {
         targetOrderId: updated.id,
       });
     }
-
+    // Invalidar cache al cambiar estado
+    await redis.del('orders:active').catch(() => null);
     return res.json(updated);
   } catch (err) {
     console.error('[orders/updateStatus]', err);
@@ -299,7 +421,19 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
 // ── GET /api/orders/active ───────────────────────────────────
 export async function getActiveOrders(_req: Request, res: Response) {
+  const CACHE_KEY = 'orders:active';
+  const TTL_SECONDS = 30; // 30 segundos — balance entre frescura y rendimiento
+
   try {
+    // 1. Intentar desde cache
+    const cached = await redis.get(CACHE_KEY).catch(() => null);
+    if (cached) {
+      console.log('[Redis] HIT: órdenes activas');
+      return res.json(JSON.parse(cached));
+    }
+
+    // 2. Consultar PostgreSQL
+    console.log('[Redis] MISS: órdenes activas — consultando BD');
     const result = await pool.query(`
       SELECT
         o.id, o.order_number, o.status, o.payment_method,
@@ -307,25 +441,32 @@ export async function getActiveOrders(_req: Request, res: Response) {
         o.created_at, o.updated_at,
         t.number AS table_number,
         COALESCE(
-          json_agg(
-            json_build_object(
-              'id',         oi.id,
-              'name',       mi.name,
-              'quantity',   oi.quantity,
-              'unit_price', oi.price,
-              'notes',      oi.special_instructions
-            )
-          ) FILTER (WHERE oi.id IS NOT NULL),
-          '[]'
-        ) AS items
+  json_agg(
+    json_build_object(
+      'id',         oi.id,
+      'name',       mi.name,
+      'quantity',   oi.quantity,
+      'unit_price', oi.price,
+      'notes',      oi.special_instructions
+    )
+  ) FILTER (WHERE oi.id IS NOT NULL AND COALESCE(mc.skip_kitchen, false) = false),
+  '[]'
+) AS items
       FROM orders o
       LEFT JOIN tables t       ON o.table_id = t.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
-      LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status NOT IN ('completed', 'cancelled')
+     LEFT JOIN menu_items mi     ON oi.menu_item_id = mi.id
+LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
       GROUP BY o.id, t.number
       ORDER BY o.created_at ASC
     `);
+
+    // 3. Guardar en cache
+    await redis
+      .setEx(CACHE_KEY, TTL_SECONDS, JSON.stringify(result.rows))
+      .catch((err) => console.warn('[Redis] No se pudo cachear órdenes activas:', err.message));
+
     return res.json(result.rows);
   } catch (err) {
     console.error('[orders/active]', err);
@@ -338,7 +479,7 @@ export async function getActiveOrders(_req: Request, res: Response) {
 export async function getOrderHistory(req: Request, res: Response) {
   try {
     const { date } = req.query; // opcional: YYYY-MM-DD, default hoy
-    const targetDate = date ? String(date) : new Date().toISOString().split('T')[0];
+    const targetDate = date ? String(date) : new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Bogota' }).format(new Date());
 
     const result = await pool.query(`
       SELECT
@@ -370,7 +511,8 @@ export async function getOrderHistory(req: Request, res: Response) {
       LEFT JOIN users uc   ON o.cashier_id = uc.id
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
-      WHERE o.status IN ('completed', 'cancelled')
+LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+WHERE o.status NOT IN ('completed', 'cancelled')
         AND DATE(o.created_at AT TIME ZONE 'America/Bogota') = $1
       GROUP BY o.id, t.number, uw.first_name, uw.last_name, uc.first_name, uc.last_name
       ORDER BY o.created_at DESC
@@ -404,5 +546,539 @@ export async function getOrderHistory(req: Request, res: Response) {
   } catch (err) {
     console.error('[orders/history]', err);
     return res.status(500).json({ message: 'Error al obtener historial' });
+  }
+}
+// ── PATCH /api/orders/:id/request-bill ───────────────────────
+// El mesero llama a este endpoint cuando el cliente pide la cuenta.
+// Recibe: payment_method, tip (propina), notas opcionales.
+// Actualiza la orden con esos datos y cambia la mesa a waiting_bill.
+// A partir de aquí, caja puede ver la mesa y cobrarla.
+// SOLO el mesero (o admin) puede llamar este endpoint.
+export async function requestBill(req: Request, res: Response) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { payment_method, tip = 0, notes } = req.body as {
+      payment_method: string;
+      tip?:           number;
+      notes?:         string;
+    };
+
+    const validMethods = ['efectivo', 'tarjeta_debito', 'tarjeta_credito', 'transferencia', 'tarjeta'];
+    if (!validMethods.includes(payment_method)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'Método de pago inválido' });
+    }
+
+    // Verificar que la orden existe y está en estado delivered (o delivered/occupied)
+    const orderResult = await client.query(
+      `SELECT id, order_number, status, table_id, total, subtotal, tax
+       FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (!orderResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Solo se puede solicitar cuenta si la orden fue entregada
+    if (!['delivered', 'sent_to_kitchen', 'in_preparation', 'ready_for_pickup'].includes(order.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({
+        message: `No se puede solicitar cuenta en estado: ${order.status}`,
+      });
+    }
+
+    const tipAmount    = parseFloat(String(tip)) || 0;
+    const totalWithTip = parseFloat(order.total) + tipAmount;
+
+    // Actualizar la orden: guardar método de pago, propina, nuevo total, status
+    const updated = await client.query(
+      `UPDATE orders
+       SET payment_method = $1,
+           tip            = $2,
+           total          = $3,
+           status         = 'waiting_bill',
+           notes          = COALESCE($4, notes),
+           updated_at     = NOW()
+       WHERE id = $5
+       RETURNING id, order_number, status, table_id, payment_method, tip, total, subtotal, tax`,
+      [payment_method, tipAmount.toFixed(2), totalWithTip.toFixed(2), notes ?? null, id]
+    );
+
+    const updatedOrder = updated.rows[0];
+
+    // Cambiar mesa a waiting_bill — ahora sí interviene caja
+    if (updatedOrder.table_id) {
+      await client.query(
+        `UPDATE tables SET status = 'waiting_bill' WHERE id = $1`,
+        [updatedOrder.table_id]
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // Broadcast: la orden ahora está en waiting_bill con datos de pago
+    broadcast({
+      type:    'order:bill_requested',
+      payload: {
+        orderId:       updatedOrder.id,
+        orderNumber:   updatedOrder.order_number,
+        tableId:       updatedOrder.table_id,
+        paymentMethod: updatedOrder.payment_method,
+        tip:           parseFloat(updatedOrder.tip   ?? '0'),
+        subtotal:      parseFloat(updatedOrder.subtotal),
+        tax:           parseFloat(updatedOrder.tax),
+        total:         parseFloat(updatedOrder.total),
+        status:        'waiting_bill',
+      },
+    });
+
+    // También broadcast table:status para que el dashboard del mesero
+    // y el panel de caja actualicen la mesa en tiempo real
+    if (updatedOrder.table_id) {
+      broadcast({
+        type: 'table:status',
+        payload: {
+          tableId:     updatedOrder.table_id,
+          status:      'waiting_bill',
+          orderStatus: 'waiting_bill',
+          orderId:     updatedOrder.id,
+          orderNumber: updatedOrder.order_number,
+        },
+      });
+    }
+
+    // Broadcast order:status genérico para el panel monitor de caja
+    broadcast({
+      type: 'order:status',
+      payload: {
+        orderId:  updatedOrder.id,
+        status:   'waiting_bill',
+        tableId:  updatedOrder.table_id,
+      },
+    });
+
+    return res.json({
+      message:       'Cuenta solicitada correctamente',
+      orderId:       updatedOrder.id,
+      orderNumber:   updatedOrder.order_number,
+      paymentMethod: updatedOrder.payment_method,
+      tip:           parseFloat(updatedOrder.tip   ?? '0'),
+      subtotal:      parseFloat(updatedOrder.subtotal),
+      tax:           parseFloat(updatedOrder.tax),
+      total:         parseFloat(updatedOrder.total),
+      status:        'waiting_bill',
+    });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[orders/requestBill]', err);
+    return res.status(500).json({ message: 'Error al solicitar la cuenta' });
+  } finally {
+    client.release();
+  }
+}
+// ── PATCH /api/orders/:id/items/:itemId/deliver ──────────────
+export async function deliverOrderItem(req: Request, res: Response) {
+ const { id, itemId } = req.params;
+try {
+  // Verificar que la orden está en un estado que permite entrega
+  const orderCheck = await pool.query(
+    `SELECT status FROM orders WHERE id = $1`,
+    [id]
+  );
+  if (!orderCheck.rows[0]) {
+    return res.status(404).json({ message: 'Orden no encontrada' });
+  }
+  // Verificar si el ítem es skip_kitchen
+const itemCheck = await pool.query(
+  `SELECT COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+   FROM order_items oi
+   JOIN menu_items mi ON oi.menu_item_id = mi.id
+   LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+   WHERE oi.id = $1`,
+  [itemId]
+);
+const isSkipKitchen = itemCheck.rows[0]?.skip_kitchen ?? false;
+const allowedStatuses = isSkipKitchen
+  ? ['sent_to_kitchen', 'in_preparation', 'ready_for_pickup']
+  : ['ready_for_pickup'];
+  if (!allowedStatuses.includes(orderCheck.rows[0].status)) {
+    return res.status(400).json({ message: `No se puede entregar en estado: ${orderCheck.rows[0].status}` });
+  }
+  // Marcar ítem como entregado
+    // Marcar ítem como entregado
+    const itemResult = await pool.query(
+      `UPDATE order_items 
+       SET delivered_at = NOW()
+       WHERE id = $1 AND order_id = $2
+       RETURNING *`,
+      [itemId, id]
+    );
+    if (itemResult.rows.length === 0) {
+      return res.status(404).json({ message: 'Ítem no encontrado' });
+    }
+
+    // Verificar si todos los ítems están entregados
+    const pending = await pool.query(
+      `SELECT COUNT(*) FROM order_items 
+       WHERE order_id = $1 AND delivered_at IS NULL`,
+      [id]
+    );
+    const allDelivered = parseInt(pending.rows[0].count) === 0;
+
+    // Si todos entregados → orden a 'delivered'
+    if (allDelivered) {
+      await pool.query(
+        `UPDATE orders SET status = 'delivered', updated_at = NOW() WHERE id = $1`,
+        [id]
+      );
+      broadcast({ type: 'ORDER_DELIVERED', payload: { orderId: id } });
+    }
+
+    broadcast({ 
+      type: 'ITEM_DELIVERED', 
+      payload: { orderId: id, itemId, allDelivered } 
+    });
+
+    return res.json({ 
+      item: itemResult.rows[0], 
+      allDelivered 
+    });
+  } catch (err) {
+    console.error('[orders/items/deliver]', err);
+    return res.status(500).json({ message: 'Error al entregar ítem' });
+  }
+}
+
+// ── PATCH /api/orders/:id/modify ─────────────────────────────
+// Permite al cliente modificar su orden ANTES de que se envíe a cocina.
+// Estados permitidos: pending_payment, payment_confirmed
+// El cliente puede agregar nuevos items, cambiar cantidades o eliminar items.
+export async function modifyOrder(req: Request, res: Response) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { id } = req.params;
+    const { items } = req.body as {
+      items: Array<{
+        menu_item_id: string;
+        quantity: number;
+        special_instructions?: string;
+      }>;
+    };
+
+    if (!items || items.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ message: 'La orden debe tener al menos un item' });
+    }
+
+    // Verificar que la orden existe y está en un estado modificable
+    const orderResult = await client.query(
+      `SELECT id, order_number, status, source, table_id FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (!orderResult.rows[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const order = orderResult.rows[0];
+
+    // Estados modificables:
+    //   Autoservicio: pending_payment, payment_confirmed, pending_validation (antes de cocina)
+    const modifiableStatuses = [
+      'pending_payment', 'payment_confirmed', 'pending_validation',
+      'sent_to_kitchen',
+    ];
+    if (!modifiableStatuses.includes(order.status)) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ 
+        message: `No se puede modificar la orden en estado: ${order.status}.` 
+      });
+    }
+
+    // Verificar items y obtener precios reales
+    const itemIds = items.map((i) => i.menu_item_id);
+    const menuResult = await client.query(
+      `SELECT id, name, price, is_available, is_out_of_stock
+       FROM menu_items WHERE id = ANY($1::uuid[])`,
+      [itemIds]
+    );
+    const menuMap = new Map(menuResult.rows.map((r) => [r.id, r]));
+
+    for (const item of items) {
+      const mi = menuMap.get(item.menu_item_id);
+      if (!mi) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Item "${item.menu_item_id}" no existe` });
+      }
+      if (!mi.is_available || mi.is_out_of_stock) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `"${mi.name}" no está disponible` });
+      }
+      if (!Number.isInteger(item.quantity) || item.quantity < 1) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ message: `Cantidad inválida para "${mi.name}"` });
+      }
+    }
+
+    // ── Capturar items actuales ANTES de borrarlos (para ajuste de stock) ─────
+    const prevItemsR = await client.query(
+      `SELECT oi.menu_item_id, oi.quantity, oi.id AS order_item_id
+       FROM order_items oi WHERE oi.order_id = $1`,
+      [id]
+    );
+    const prevMap = new Map<string, { quantity: number; order_item_id: string }>();
+    for (const r of prevItemsR.rows) {
+      prevMap.set(r.menu_item_id, { quantity: r.quantity, order_item_id: r.order_item_id });
+    }
+
+    // Construir mapa de nuevas cantidades
+    const newMap = new Map<string, number>();
+    for (const item of items) newMap.set(item.menu_item_id, item.quantity);
+
+    // ── AJUSTE DE STOCK ─────────────────────────────────────────────────────
+    const userId = (req as Request & { user?: { id: string } }).user?.id ?? null;
+
+    // 1. Items que BAJAN de cantidad o desaparecen → devolver diferencia al stock
+    for (const [menuItemId, prev] of prevMap.entries()) {
+      const newQty = newMap.get(menuItemId) ?? 0;
+      const diff   = prev.quantity - newQty; // positivo = se redujo
+      if (diff <= 0) continue;
+
+      // Obtener receta y skip_kitchen
+      const miR = await client.query(
+        `SELECT COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+         FROM menu_items mi
+         LEFT JOIN menu_categories mc ON mc.id = mi.category_id
+         WHERE mi.id = $1`,
+        [menuItemId]
+      );
+      const skipKitchen: boolean = miR.rows[0]?.skip_kitchen ?? false;
+
+      const recipeR = await client.query(
+        `SELECT mii.ingredient_id, mii.quantity_required,
+                i.name AS ingredient_name, i.unit,
+                COALESCE(i.is_direct_product, false) AS is_direct_product
+         FROM menu_item_ingredients mii
+         JOIN ingredients i ON i.id = mii.ingredient_id
+         WHERE mii.menu_item_id = $1`,
+        [menuItemId]
+      );
+
+      for (const ri of recipeR.rows) {
+        const toReturn = parseFloat(ri.quantity_required) * diff;
+
+        if (ri.is_direct_product || skipKitchen) {
+          // Devolver a bodega principal
+          const updR = await client.query(
+            `UPDATE ingredients SET stock_quantity = stock_quantity + $1, updated_at = NOW()
+             WHERE id = $2 RETURNING stock_quantity`,
+            [toReturn, ri.ingredient_id]
+          );
+          const newStock = parseFloat(updR.rows[0]?.stock_quantity ?? '0');
+          await client.query(
+            `INSERT INTO inventory_movements
+               (ingredient_id, type, quantity, stock_after, user_id, order_item_id, notes)
+             VALUES ($1,'entrada',$2,$3,$4,$5,$6)`,
+            [ri.ingredient_id, toReturn, newStock, userId, prev.order_item_id,
+             `Devolución por modificación de orden #${order.order_number}`]
+          );
+        } else {
+          // Devolver a bodega cocina (turno abierto más reciente)
+          const shiftR = await client.query(
+            `SELECT swi.id AS swi_id, swi.quantity_remaining
+             FROM shift_withdrawal_items swi
+             JOIN shift_withdrawals sw ON sw.id = swi.shift_withdrawal_id
+             WHERE sw.status = 'abierto' AND swi.ingredient_id = $1
+             ORDER BY sw.started_at DESC LIMIT 1 FOR UPDATE`,
+            [ri.ingredient_id]
+          );
+          if (shiftR.rows[0]) {
+            const newRemaining = parseFloat(
+              (parseFloat(shiftR.rows[0].quantity_remaining) + toReturn).toFixed(3)
+            );
+            await client.query(
+              `UPDATE shift_withdrawal_items SET quantity_remaining=$1 WHERE id=$2`,
+              [newRemaining, shiftR.rows[0].swi_id]
+            );
+            await client.query(
+              `INSERT INTO inventory_movements
+                 (ingredient_id, type, quantity, stock_after, user_id, order_item_id, notes)
+               VALUES ($1,'entrada',$2,$3,$4,$5,$6)`,
+              [ri.ingredient_id, toReturn, newRemaining, userId, prev.order_item_id,
+               `Devolución a cocina por modificación de orden #${order.order_number}`]
+            );
+            // Reactivar platillos si el stock ahora es suficiente
+            await StockDeductionService.reactivateItemsIfStockSufficient(ri.ingredient_id, client);
+          }
+        }
+      }
+    }
+
+    // 2. Items que SUBEN de cantidad o son nuevos → descontar diferencia
+    const deductionItems: Array<{
+      menu_item_id: string; menu_item_name: string; quantity: number; order_item_id: string;
+    }> = [];
+    for (const item of items) {
+      const prevQty = prevMap.get(item.menu_item_id)?.quantity ?? 0;
+      const diff    = item.quantity - prevQty; // positivo = aumentó
+      if (diff <= 0) continue;
+      deductionItems.push({
+        menu_item_id:   item.menu_item_id,
+        menu_item_name: menuMap.get(item.menu_item_id)!.name as string,
+        quantity:       diff,
+        order_item_id:  prevMap.get(item.menu_item_id)?.order_item_id ?? '',
+      });
+    }
+
+    // ── Eliminar items actuales y reinsertar ────────────────────────────────
+    await client.query(`DELETE FROM order_items WHERE order_id = $1`, [id]);
+
+    // Obtener tasa de IVA desde configuración (no hardcodeado)
+    const taxCfgMod = await client.query(
+      `SELECT value FROM settings WHERE key = 'tax_rate' LIMIT 1`
+    );
+    const taxRateMod = parseFloat(taxCfgMod.rows[0]?.value ?? '0') / 100;
+
+    // Calcular nuevos totales
+    let subtotal = 0;
+    for (const item of items) {
+      subtotal += parseFloat(menuMap.get(item.menu_item_id)!.price) * item.quantity;
+    }
+    const tax = parseFloat((subtotal * taxRateMod).toFixed(2));
+    const total = parseFloat((subtotal + tax).toFixed(2));
+
+    // Actualizar totales de la orden
+    await client.query(
+      `UPDATE orders 
+       SET subtotal = $1, tax = $2, total = $3, updated_at = NOW()
+       WHERE id = $4`,
+      [subtotal.toFixed(2), tax.toFixed(2), total.toFixed(2), id]
+    );
+
+    // Insertar nuevos items y recopilar sus IDs para el descuento
+    const newOrderItemIds: Record<string, string> = {};
+    for (const item of items) {
+      const mi  = menuMap.get(item.menu_item_id)!;
+      const oiR = await client.query(
+        `INSERT INTO order_items
+           (order_id, menu_item_id, quantity, price, special_instructions, status)
+         VALUES ($1,$2,$3,$4,$5,'pending')
+         RETURNING id`,
+        [id, item.menu_item_id, item.quantity, mi.price, item.special_instructions ?? null]
+      );
+      newOrderItemIds[item.menu_item_id] = oiR.rows[0].id as string;
+    }
+
+    // Asignar order_item_id correcto a los items que necesitan descuento adicional
+    for (const d of deductionItems) {
+      d.order_item_id = newOrderItemIds[d.menu_item_id] ?? d.order_item_id;
+    }
+
+    // Descontar el incremento de stock
+    if (deductionItems.length > 0) {
+      const deduction = await StockDeductionService.deductStockForOrder(
+        deductionItems, userId, client
+      );
+      if (deduction.newlyOutOfStock.length > 0) {
+        // Se notifica después del COMMIT
+        setTimeout(() => StockDeductionService.broadcastOutOfStock(deduction.newlyOutOfStock), 0);
+      }
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs (action, resource_type, resource_id)
+       VALUES ('order_modified','order',$1)`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+
+    // Obtener la orden actualizada con items
+    const updatedOrder = await pool.query(
+      `SELECT id, order_number, table_id, subtotal, tax, discount, tip,
+              total, status, payment_method, payment_status, source, notes,
+              created_at, validated_at, sent_to_kitchen_at, ready_at,
+              delivered_at, completed_at
+       FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    const itemsResult = await pool.query(
+      `SELECT oi.id, oi.menu_item_id, oi.quantity, oi.price,
+              oi.special_instructions, oi.status, oi.delivered_at,
+              mi.name, COALESCE(mc.skip_kitchen, false) AS skip_kitchen
+       FROM order_items oi
+       JOIN menu_items mi ON oi.menu_item_id = mi.id
+       LEFT JOIN menu_categories mc ON mi.category_id = mc.id
+       WHERE oi.order_id = $1`,
+      [id]
+    );
+
+    // Broadcast para actualizar en tiempo real
+    broadcast({
+      type: 'order:modified',
+      payload: {
+        orderId: id,
+        orderNumber: order.order_number,
+        subtotal: parseFloat(subtotal.toFixed(2)),
+        tax,
+        total,
+        items: itemsResult.rows.map((i: { name: string; quantity: number; special_instructions: string | null }) => ({
+          name: i.name,
+          quantity: i.quantity,
+          special_instructions: i.special_instructions,
+        })),
+      },
+    });
+
+    return res.json({ ...updatedOrder.rows[0], items: itemsResult.rows });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('[orders/modify]', err);
+    return res.status(500).json({ message: 'Error al modificar la orden' });
+  } finally {
+    client.release();
+  }
+}
+
+// ── GET /api/orders/:id/can-modify ───────────────────────────
+// Verifica si una orden puede ser modificada
+export async function canModifyOrder(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      `SELECT status FROM orders WHERE id = $1`,
+      [id]
+    );
+
+    if (!result.rows[0]) {
+      return res.status(404).json({ message: 'Orden no encontrada' });
+    }
+
+    const modifiableStatuses = [
+      'pending_payment', 'payment_confirmed', 'pending_validation',
+      'sent_to_kitchen',
+    ];
+    const canModify = modifiableStatuses.includes(result.rows[0].status);
+
+    return res.json({ 
+      canModify, 
+      status: result.rows[0].status,
+      reason: canModify ? null : 'La orden no puede modificarse en su estado actual',
+    });
+  } catch (err) {
+    console.error('[orders/canModify]', err);
+    return res.status(500).json({ message: 'Error al verificar estado de la orden' });
   }
 }

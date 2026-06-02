@@ -1,31 +1,23 @@
-FROM node:20-alpine AS builder
+# ── Backend Dockerfile ──────────────────────────────────────
+FROM node:20-alpine
 
 WORKDIR /app
 
+# Instalar dependencias del sistema necesarias para pg
+RUN apk add --no-cache python3 make g++
 
+# Copiar package files e instalar dependencias
 COPY package*.json ./
+RUN npm ci
 
-
-RUN npm install
-
-
+# Copiar código fuente
 COPY . .
 
-
+# Compilar TypeScript
 RUN npm run build
 
-
+# Exponer puerto
 EXPOSE 3001
 
-
-CMD ["npm", "run", "start"]
-
-# Etapa final
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY package*.json ./
-RUN npm install --omit=dev
-
-EXPOSE 3001
+# Iniciar con el JS compilado
 CMD ["node", "dist/server.js"]

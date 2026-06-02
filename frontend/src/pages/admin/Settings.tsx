@@ -1,3 +1,4 @@
+import { formatCOP } from '../../utils/constants';
 // ============================================================
 // frontend/src/pages/admin/Settings.tsx  →  /admin/settings
 //
@@ -10,26 +11,26 @@ import { useEffect, useState } from 'react';
 import AdminLayout from '../../components/admin/AdminLayout';
 import { getSettings, saveSettings } from '../../services/adminService';
 import type { RestaurantSettings } from '../../types/admin';
-
+import { useAppStore } from '../../store/appStore';
 const CURRENCIES = ['USD', 'COP', 'MXN', 'EUR', 'PEN', 'ARS', 'CLP'];
-const TIMEZONES  = ['America/Bogota','America/Mexico_City','America/Lima','America/Santiago','America/Buenos_Aires','America/New_York','America/Sao_Paulo'];
+const TIMEZONES = ['America/Bogota', 'America/Mexico_City', 'America/Lima', 'America/Santiago', 'America/Buenos_Aires', 'America/New_York', 'America/Sao_Paulo'];
 
 const DEFAULT: RestaurantSettings = {
-  name:           'RestaurantPWA',
-  address:        '',
-  phone:          '',
-  tax_rate:       8,
+  name: 'RestaurantPWA',
+  address: '',
+  phone: '',
+  tax_rate: 8,
   tip_suggestion: 10,
-  currency:       'USD',
-  timezone:       'America/Bogota',
+  currency: 'COP',
+  timezone: 'America/Bogota',
 };
 
 export default function Settings() {
   const [settings, setSettings] = useState<RestaurantSettings>(DEFAULT);
-  const [loading,  setLoading]  = useState(true);
-  const [saving,   setSaving]   = useState(false);
-  const [saved,    setSaved]    = useState(false);
-  const [error,    setError]    = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setLoading(true);
@@ -44,6 +45,7 @@ export default function Settings() {
     setError(null);
     try {
       const saved = await saveSettings(settings);
+      useAppStore.getState().reloadConfig();
       setSettings(saved);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -88,7 +90,7 @@ export default function Settings() {
         </div>
 
         {loading ? (
-          <div className="admin-loading"><div className="admin-spinner"/></div>
+          <div className="admin-loading"><div className="admin-spinner" /></div>
         ) : (
           <div className="settings-sections">
 
@@ -115,6 +117,12 @@ export default function Settings() {
             <div className="admin-form-card">
               <h3 className="admin-form-title">Configuración financiera</h3>
               <div className="admin-form-grid">
+                {field('IVA / Impuesto (%)', 'tax_rate', 'number',
+                  'Porcentaje aplicado a cada orden. Ej: 8 = 8%',
+                  { min: 0, max: 50, step: 0.1 })}
+                {field('Propina sugerida (%)', 'tip_suggestion', 'number',
+                  'Porcentaje sugerido al cliente. Ej: 10 = 10%',
+                  { min: 0, max: 30, step: 0.5 })}
                 <div className="admin-field">
                   <label>Moneda</label>
                   <select className="admin-select" value={settings.currency}
@@ -122,36 +130,12 @@ export default function Settings() {
                     {CURRENCIES.map((c) => <option key={c} value={c}>{c}</option>)}
                   </select>
                 </div>
-                {field('IVA / Impuesto (%)', 'tax_rate', 'number',
-                  'Porcentaje aplicado a cada orden. Ej: 8 = 8%',
-                  { min: 0, max: 50, step: 0.1 })}
-                {field('Propina sugerida (%)', 'tip_suggestion', 'number',
-                  'Porcentaje sugerido al cliente. Ej: 10 = 10%',
-                  { min: 0, max: 30, step: 0.5 })}
-              </div>
-
-              {/* Vista previa del cálculo */}
-              <div className="settings-preview">
-                <p className="settings-preview-title">Vista previa con $100 de subtotal:</p>
-                <div className="settings-preview-rows">
-                  <div className="spr-row"><span>Subtotal</span><span>$100.00</span></div>
-                  <div className="spr-row"><span>IVA ({settings.tax_rate}%)</span>
-                    <span>${(100 * settings.tax_rate / 100).toFixed(2)}</span></div>
-                  <div className="spr-row spr-total">
-                    <span>Total</span>
-                    <span>${(100 + 100 * settings.tax_rate / 100).toFixed(2)}</span>
-                  </div>
-                  <div className="spr-row spr-tip">
-                    <span>Propina sugerida ({settings.tip_suggestion}%)</span>
-                    <span>+${(100 * settings.tip_suggestion / 100).toFixed(2)}</span>
-                  </div>
-                </div>
               </div>
             </div>
 
             {/* Acciones */}
             {error && <div className="admin-error-banner" role="alert">{error}</div>}
-            {saved  && <div className="admin-success-banner">✅ Configuración guardada correctamente</div>}
+            {saved && <div className="admin-success-banner"> Configuración guardada correctamente</div>}
 
             <div className="admin-form-actions" style={{ justifyContent: 'flex-end' }}>
               <button
