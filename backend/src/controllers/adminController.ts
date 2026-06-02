@@ -1,7 +1,3 @@
-// ============================================================
-// backend/src/controllers/adminController.ts  —  Fase 8 + Fase 11
-// ============================================================
-
 import { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import pool from '../utils/db';

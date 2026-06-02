@@ -1,12 +1,3 @@
-// ============================================================
-// backend/src/controllers/metricsController.ts  —  Fix 5
-//
-// GET /api/orders/metrics
-// Retorna métricas de tiempo entre módulos para análisis
-// descriptivo de las operaciones del restaurante.
-// Solo accesible por caja y admin.
-// ============================================================
-
 import { Response } from 'express';
 import pool         from '../utils/db';
 import type { AuthRequest } from '../middleware/auth';

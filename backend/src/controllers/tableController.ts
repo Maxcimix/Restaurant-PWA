@@ -1,18 +1,3 @@
-// ============================================================
-// backend/src/controllers/tableController.ts  —  Fase 6
-//
-// CAMBIOS vs versión anterior:
-//
-// 1. getAllTables(): query enriquecida con JOIN a orders + users.
-//    Calcula current_order_id, current_order_number, waiter_name,
-//    order_created_at SIN modificar el schema de tables.
-//    (Decisión de diseño: opción B de la auditoría pre-Fase 6)
-//
-// 2. updateTableStatus(): agrega broadcast WebSocket table:status
-//    para que el dashboard del mesero se actualice en tiempo real.
-//    El broadcast va a roles ['mesero', 'caja', 'admin'].
-// ============================================================
-
 import { Request, Response } from 'express';
 import pool                  from '../utils/db';
 import { broadcast }         from '../websocket/handlers';
