@@ -45,7 +45,7 @@
   padding: 5px 14px; border-radius: 6px;
 }
 .pill-orange { background: rgba(201,79,44,0.10); color: #FF6B35; border: 1px solid rgba(201,79,44,0.20); }
-.pill-blue   { background: rgba(201,79,44,0.08);  color: #515154; border: 1px solid rgba(201,79,44,0.15); }
+.pill-blue   { background: rgba(59,130,246,0.12); color: #1d4ed8; border: 1px solid rgba(59,130,246,0.25); }
 
 /* Header */
 .rs-header { display: flex; flex-direction: column; gap: 10px; }
@@ -104,21 +104,28 @@
   background: #FFF8F5;
 }
 .accent-blue .role-card:hover {
-  border-color: #2A4D6A;
+  border-color: #2563eb;
   transform: translateY(-3px);
-  box-shadow: 0 12px 36px rgba(42,77,106,0.12);
-  background: #F5F8FC;
+  box-shadow: 0 12px 36px rgba(37,99,235,0.15);
+  background: #eff6ff;
 }
 
-.rc-icon {
+.accent-orange .rc-icon {
   color: #FF6B35;
   background: #FFF3EE;
   width: 44px; height: 44px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
   transition: background 0.25s; line-height: 0;
+.accent-blue .rc-icon {
+  color: #2563eb;
+  background: #dbeafe;
+  width: 44px; height: 44px; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center;
+  transition: background 0.25s; line-height: 0;
+}
 }
 .accent-orange .role-card:hover .rc-icon { background: #FFE8DC; color: #E85A28; }
-.accent-blue   .role-card:hover .rc-icon { background: #EEF2F7; color: #2A4D6A; }
+.accent-blue   .role-card:hover .rc-icon { background: #dbeafe; color: #1d4ed8; }
 
 .rc-body { display: flex; flex-direction: column; gap: 8px; }
 
@@ -148,4 +155,4 @@
   transition: color 0.25s, transform 0.25s;
 }
 .accent-orange .role-card:hover .rc-arrow { color: #FF6B35; transform: translateX(3px); }
-.accent-blue   .role-card:hover .rc-arrow { color: #515154; transform: translateX(3px); }
+.accent-blue   .role-card:hover .rc-arrow { color: #2563eb; transform: translateX(3px); }
