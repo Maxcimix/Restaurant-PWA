@@ -490,7 +490,7 @@ export async function getOrderHistory(req: Request, res: Response) {
       LEFT JOIN order_items oi ON oi.order_id = o.id
       LEFT JOIN menu_items mi  ON oi.menu_item_id = mi.id
 LEFT JOIN menu_categories mc ON mi.category_id = mc.id
-WHERE o.status NOT IN ('completed', 'cancelled')
+WHERE o.status IN ('completed', 'cancelled')
         AND DATE(o.created_at AT TIME ZONE 'America/Bogota') = $1
       GROUP BY o.id, t.number, uw.first_name, uw.last_name, uc.first_name, uc.last_name
       ORDER BY o.created_at DESC
@@ -526,12 +526,8 @@ WHERE o.status NOT IN ('completed', 'cancelled')
     return res.status(500).json({ message: 'Error al obtener historial' });
   }
 }
-// ── PATCH /api/orders/:id/request-bill ───────────────────────
-// El mesero llama a este endpoint cuando el cliente pide la cuenta.
-// Recibe: payment_method, tip (propina), notas opcionales.
-// Actualiza la orden con esos datos y cambia la mesa a waiting_bill.
-// A partir de aquí, caja puede ver la mesa y cobrarla.
-// SOLO el mesero (o admin) puede llamar este endpoint.
+
+
 export async function requestBill(req: Request, res: Response) {
   const client = await pool.connect();
   try {

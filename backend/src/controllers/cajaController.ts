@@ -30,10 +30,11 @@ export async function closeOrder(req: AuthRequest, res: Response) {
 
     const order = orderResult.rows[0];
 
-    if (order.status !== 'ready_for_pickup') {
+    const validStates = ['ready_for_pickup', 'delivered'];
+    if (!validStates.includes(order.status)) {
       await client.query('ROLLBACK');
       return res.status(400).json({
-        message: `La orden debe estar en estado 'ready_for_pickup'. Estado actual: ${order.status}`,
+        message: `La orden debe estar en estado 'ready_for_pickup' o 'delivered'. Estado actual: ${order.status}`,
       });
     }
 
