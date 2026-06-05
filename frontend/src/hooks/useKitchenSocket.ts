@@ -1,3 +1,16 @@
+// ============================================================
+// frontend/src/hooks/useKitchenSocket.ts  —  Fase 5: KDS
+//
+// FIXES:
+//  1. React StrictMode: el doble mount desmontaba el WS antes de
+//     que terminara de conectarse → ahora se verifica readyState
+//     antes de cerrar y se usa un flag `intentionalClose`.
+//  2. Las funciones del store (addOrder, updateStatus, removeOrder)
+//     cambiaban de referencia en cada render → ahora se guardan
+//     en refs y se excluyen de las dependencias del useCallback,
+//     evitando el loop de reconexión.
+// ============================================================
+
 import { useEffect, useRef, useCallback } from 'react';
 import { useKitchenStore } from '../store/kitchenStore';
 import { apiFetch }        from '../services/api';
@@ -15,13 +28,15 @@ export function useKitchenSocket(token: string | null) {
 
   // FIX: guardar las funciones del store en refs para no incluirlas
   // en las dependencias de useCallback (evita loop de reconexión)
-  const { addOrder, updateStatus, removeOrder } = useKitchenStore();
+  const { addOrder, updateStatus, removeOrder, replaceOrder } = useKitchenStore();
   const addOrderRef     = useRef(addOrder);
   const updateStatusRef = useRef(updateStatus);
-  const removeOrderRef  = useRef(removeOrder);
+  const removeOrderRef   = useRef(removeOrder);
+  const replaceOrderRef  = useRef(replaceOrder);
   useEffect(() => { addOrderRef.current     = addOrder;     }, [addOrder]);
   useEffect(() => { updateStatusRef.current = updateStatus; }, [updateStatus]);
-  useEffect(() => { removeOrderRef.current  = removeOrder;  }, [removeOrder]);
+  useEffect(() => { removeOrderRef.current   = removeOrder;   }, [removeOrder]);
+  useEffect(() => { replaceOrderRef.current  = replaceOrder;  }, [replaceOrder]);
 
   const connect = useCallback(() => {
     if (!token || !isMounted.current) return;
@@ -72,8 +87,37 @@ export function useKitchenSocket(token: string | null) {
             if (['completed', 'cancelled'].includes(status)) {
               removeOrderRef.current(orderId);
             } else if (kdsStatuses.includes(status)) {
-              updateStatusRef.current(orderId, status);
+              // FIX: si la orden no está en el store todavía (caso autoservicio:
+              // la orden nació como pending_payment y caja la envió a cocina),
+              // hay que fetchearla y agregarla. Si ya existe, solo actualizar.
+              const existsInStore = useKitchenStore
+                .getState()
+                .orders.some((o) => o.id === orderId);
+              if (existsInStore) {
+                updateStatusRef.current(orderId, status);
+              } else {
+                apiFetch<Order>(`/orders/${orderId}`)
+                  .then((fullOrder) => {
+                    if (isMounted.current && kdsStatuses.includes(fullOrder.status)) {
+                      addOrderRef.current(fullOrder);
+                    }
+                  })
+                  .catch((e) => console.error('[WS Cocina] order:status fetch error', e));
+              }
             }
+            break;
+          }
+
+          case 'order:modified': {
+            const orderId = payload.orderId as string;
+            // Fetchear la orden completa actualizada y reemplazarla en el store
+            apiFetch<Order>(`/orders/${orderId}`)
+              .then((fullOrder) => {
+                if (isMounted.current) {
+                  replaceOrderRef.current(fullOrder);
+                }
+              })
+              .catch((e) => console.error('[WS Cocina] order:modified fetch error', e));
             break;
           }
 

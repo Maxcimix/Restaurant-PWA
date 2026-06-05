@@ -54,6 +54,8 @@ interface KitchenState {
   addOrder:     (order: Order)    => void;
   /** Actualiza status de una orden (desde WS o acción propia) */
   updateStatus: (orderId: string, status: OrderStatus) => void;
+  /** Reemplaza orden completa al modificarla (mesero) */
+  replaceOrder: (order: Order) => void;
   /** Elimina la orden del KDS (completada/cancelada) */
   removeOrder:  (orderId: string) => void;
 
@@ -126,6 +128,15 @@ export const useKitchenStore = create<KitchenState>()((set) => ({
         ),
       };
     }),
+
+  replaceOrder: (order) =>
+    set((s) => ({
+      orders: s.orders.map((o) =>
+        o.id === order.id
+          ? recalcCompleted({ ...toKitchenOrder(order), completedItemIds: o.completedItemIds })
+          : o
+      ),
+    })),
 
   removeOrder: (orderId) =>
     set((s) => ({ orders: s.orders.filter((o) => o.id !== orderId) })),
