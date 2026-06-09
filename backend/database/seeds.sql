@@ -198,3 +198,14 @@ ON CONFLICT (name) DO NOTHING;
 --   mesero@restaurant.com     / mesero1234
 --   super@restaurant.com      / super1234
 -- ============================================================
+-- ── Configuración general (settings) ─────────────────────────
+-- Estos valores son necesarios para el funcionamiento correcto.
+-- Si no existen, el frontend usa 0 como fallback, causando
+-- comportamientos inesperados (ej: propina duplicada en modal).
+INSERT INTO settings (key, value) VALUES
+  ('operation_mode',  'ambos'),
+  ('tax_rate',        '0'),
+  ('tip_suggestion',  '10'),
+  ('currency',        'COP'),
+  ('timezone',        'America/Bogota')
+ON CONFLICT (key) DO NOTHING;

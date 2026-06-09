@@ -26,6 +26,10 @@ const ROLE_ROUTES: Record<string, Record<string, string>> = {
 // VITE_API_URL solo se usa si está explícitamente definido en .env del frontend.
 const API = import.meta.env.VITE_API_URL ?? '/api';
 
+// Roles que pueden acceder desde cualquier modalidad sin restricción de selección.
+// Para el resto, el rol del backend debe coincidir con el rol seleccionado en RoleSelectPage.
+const GLOBAL_ROLES = new Set(['cocina', 'admin', 'superusuario']);
+
 export function useAuth() {
   const navigate = useNavigate();
   const { setUser, logout: storeLogout, mode } = useAppStore();
@@ -37,17 +41,30 @@ export function useAuth() {
     setError(null);
     try {
       const data = await loginRequest({ email, password });
+
+      // Validar que el usuario tenga el rol seleccionado en RoleSelectPage.
+      // Los roles globales (cocina, admin, superusuario) siempre pueden ingresar.
+      const backendRole  = data.user.role;
+      const selectedRole = useAppStore.getState().role;
+
+      if (
+        selectedRole &&
+        !GLOBAL_ROLES.has(backendRole) &&
+        backendRole !== selectedRole
+      ) {
+        const label = selectedRole.charAt(0).toUpperCase() + selectedRole.slice(1);
+        setError(`Acceso denegado. Esta sección es solo para el rol "${label}".`);
+        return;
+      }
+
       saveToken(data.token);
       setUser({ ...data.user, token: data.token });
 
       // Siempre usar el rol que devuelve el backend para navegar.
-      // NO usar el rol del store (RoleSelectPage), ya que puede ser distinto
-      // al rol real del usuario (ej: superusuario no aparece en RoleSelectPage).
-      const backendRole = data.user.role;
-      const modeKey     = mode ?? 'autoservicio';
-      const dest        = ROLE_ROUTES[modeKey]?.[backendRole]
-                       ?? ROLE_ROUTES['autoservicio']?.[backendRole]
-                       ?? '/';
+      const modeKey = mode ?? 'autoservicio';
+      const dest    = ROLE_ROUTES[modeKey]?.[backendRole]
+                   ?? ROLE_ROUTES['autoservicio']?.[backendRole]
+                   ?? '/';
       navigate(dest);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

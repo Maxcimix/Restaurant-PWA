@@ -184,7 +184,8 @@ const configuredTip = brand.tipSuggestion;
 
               {tipMode === 'percent' ? (
                 <div className="brm-tip-percents">
-                  {[0, configuredTip].map((p) => (
+                  {/* Mostrar la propina sugerida solo si es > 0, evita duplicar "Sin propina" */}
+                  {[0, ...(configuredTip > 0 ? [configuredTip] : [])].map((p) => (
                     <button
                       key={p}
                       type="button"

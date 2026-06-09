@@ -197,6 +197,8 @@ export async function payOrder(req: AuthRequest, res: Response) {
     await client.query(
       `UPDATE orders
        SET payment_status    = 'paid',
+            status            = 'completed',
+            completed_at      = NOW(),  
            payment_method    = $1,
            payment_reference = $2,
            cashier_id        = $3,
